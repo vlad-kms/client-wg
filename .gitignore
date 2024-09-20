@@ -12,4 +12,5 @@
 **.files_tmpl
 **.tools
 **.bash_history
-**.out
+**.out*
+*.conf
