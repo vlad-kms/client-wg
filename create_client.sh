@@ -11,18 +11,18 @@ WG_ENDPOINT='77.105.139.99:51820'
 WG_ALLOWED_IPS='0.0.0.0/0, ::0/0'
 WG_MASK_NET_CLIENT=24
 
-path_files='./.out'
+path_out='./.out'
 
 help(){
   # shellcheck disable=SC2016
   ts='dt="$(date +"%Y%m%d-%H%M%S")"; name="${name:=./.out/client-${dt}}"'
   _dt="$(date +"%Y%m%d-%H%M%S")"
-  path_files="${path_files:=./.out}"
+  path_out="${path_out:=./.out}"
   echo "
   Использование:
     create-client.sh command options
     create-client.sh create-key options
-    Команды:
+    КОМАНДЫ:
     create-key  - создать ключи для клиента Wireguard
         Используемые опции:
           -n --name <STR>       - на оcновании на основании этого параметра будут сформированы имена файлов ключей по-умолчанию,
@@ -83,14 +83,15 @@ help(){
 
     all       - выполнить все задачи по порядку: create-key, сreate-conf, qr
 
-    Опции общие:
+    ОБШИЕ опции:
     -d, --debug                 - флаг вывода отладочных сообщений
         --debug-level <Num>     - не используется (пока)
                                   По-умолчанию: 2
     -r, --restart-server        - перезапустить сервис WireGuard после выполнения действий
-    -t, --path-files            - путь где будут сохраняться выходные файлы, если они определены бех пути
+    -P, --path-out              - путь где будут сохраняться выходные файлы, если они определены бех пути
                                   По-умолчанию: ./.out
 
+    ПРИМЕРЫ:
     ${0}
     ${0} qr
     ${0} qr -c /etc/wireguard/config/client.conf
@@ -124,10 +125,10 @@ _create_key(){
 _create_conf(){
   # _create_conf
   # доинициализировать переменные для шаблонов
-  WG_PRIVATE_KEY_CLIENT=$(sed -En 's/(.*)$/\1/p' "$file_key_priv")
-  WG_PSK_KEY_CLIENT=$(sed -En 's/(.*)$/\1/p' "$file_key_psk")
-  WG_PUBLIC_KEY_CLIENT=$(sed -En 's/(.*)$/\1/p' "$file_key_pub")
-  WG_PUBLIC_KEY_SERVER=$(sed -En 's/(.*)$/\1/p' "$file_pubkey_server")
+  WG_PRIVATE_KEY_CLIENT=$(sed -En 's/(.*)$/\1/p' "$file_key_priv" 2>/dev/null)
+  WG_PSK_KEY_CLIENT=$(sed -En 's/(.*)$/\1/p' "$file_key_psk" 2>/dev/null)
+  WG_PUBLIC_KEY_CLIENT=$(sed -En 's/(.*)$/\1/p' "$file_key_pub" 2>/dev/null)
+  #WG_PUBLIC_KEY_SERVER=$(sed -En 's/(.*)$/\1/p' "$file_pubkey_server" 2>/dev/null)
 
   _debug "##### Создание файлов с конфигурациями для клиента и для сервера"
   _debug "WG_IP_CLIENT: ${WG_IP_CLIENT}"
@@ -171,7 +172,7 @@ else
   action='qr'
 fi
 
-if ! args=$(getopt -u -o 'hk:p:u:c:s:q:n:df:i:e:a:m:r,t:' --long 'help,key-priv:,key-psk:,key-pub:,conf-client:,conf-server:,qr:,name:,debug,debug-level:,file-pubkey-server:,ip-client:,dns-client:,endpoint:,allow-addr:,mask-client:,restart-server,path-files:' -- "$@"); then
+if ! args=$(getopt -u -o 'hk:p:u:c:s:q:n:df:i:e:a:m:r,P:' --long 'help,key-priv:,key-psk:,key-pub:,conf-client:,conf-server:,qr:,name:,debug,debug-level:,file-pubkey-server:,ip-client:,dns-client:,endpoint:,allow-addr:,mask-client:,restart-server,path-out:' -- "$@"); then
   help;
   exit 0;
 fi
@@ -184,7 +185,7 @@ set -- ${args}
 i=0
 for i; do
   case "$i" in
-    '-h' | '--help')        help; exit 0;;
+    '-h' | '--help')        help; is_help=1;        shift;;
     '-k' | '--key-priv')    file_key_priv=${2};     shift 2;;
     '-p' | '--key-psk')     file_key_psk=${2};      shift 2;;
     '-u' | '--key-pub')     file_key_pub=${2};      shift 2;;
@@ -201,17 +202,18 @@ for i; do
     '-e' | '--endpoint')    WG_ENDPOINT="${2}";     shift 2;;
     '-a' | '--allow-addr')  WG_ALLOWED_IPS="${2}";  shift 2;;
     '-r' | '--restart-server') restart_server=1;    shift;;
-    '-t' | '--path-files')  path_files="$2";        shift 2;;
+    '-P' | '--path-out')    path_out="$2";          shift 2;;
   esac
 done
 
-if ! [ -d "$path_files" ]; then
-  mkdir "$path_files"
+if ! [ -d "$path_out" ]; then
+  mkdir "$path_out"
 fi
 
 # public key server WireGuard
 file_pubkey_server="${file_pubkey_server:=/etc/wireguard/keys/server_pub}"
-pubkey_server=$(sed -En 's/(.*)$/\1/p' "$file_pubkey_server")
+#pubkey_server=       $(sed -En 's/(.*)$/\1/p' "$file_pubkey_server" 2>/dev/null)
+WG_PUBLIC_KEY_SERVER=$(sed -En 's/(.*)$/\1/p' "$file_pubkey_server" 2>/dev/null)
 
 # файл с приватным ключом клиента
 file_key_priv="${file_key_priv:=${name}-private.key}"
@@ -219,8 +221,8 @@ file_key_priv="${file_key_priv:=${name}-private.key}"
 tfn="${file_key_priv}"
 aa=$(expr "$tfn" : '\(.*[/].*\)')
 if [[ -z $aa ]]; then
-  _debug "Имя файла ${tfn} не содержит путей. Добавим к имени ${path_files}: ${path_files}/${tfn}"
-  file_key_priv="${path_files}/${tfn}"
+  _debug "Имя файла ${tfn} не содержит путей. Добавим к имени ${path_out}: ${path_out}/${tfn}"
+  file_key_priv="${path_out}/${tfn}"
 fi
 
 # файл с PSK ключом клиента
@@ -228,8 +230,8 @@ file_key_psk="${file_key_psk:=${name}-psk.key}"
 tfn="${file_key_psk}"
 aa=$(expr "$tfn" : '\(.*[/].*\)')
 if [[ -z $aa ]]; then
-  _debug "Имя файла ${tfn} не содержит путей. Добавим к имени ${path_files}: ${path_files}/${tfn}"
-  file_key_psk="${path_files}/${tfn}"
+  _debug "Имя файла ${tfn} не содержит путей. Добавим к имени ${path_out}: ${path_out}/${tfn}"
+  file_key_psk="${path_out}/${tfn}"
 fi
 
 # файл с публичным ключом клиента
@@ -237,8 +239,8 @@ file_key_pub="${file_key_pub:=${name}-public.key}"
 tfn="${file_key_pub}"
 aa=$(expr "$tfn" : '\(.*[/].*\)')
 if [[ -z $aa ]]; then
-  _debug "Имя файла ${tfn} не содержит путей. Добавим к имени ${path_files}: ${path_files}/${tfn}"
-  file_key_pub="${path_files}/${tfn}"
+  _debug "Имя файла ${tfn} не содержит путей. Добавим к имени ${path_out}: ${path_out}/${tfn}"
+  file_key_pub="${path_out}/${tfn}"
 fi
 
 # файл с конфигурацией клиента
@@ -246,16 +248,16 @@ file_conf_client="${file_conf_client:=${name}-client.conf}"
 tfn="${file_conf_client}"
 aa=$(expr "$tfn" : '\(.*[/].*\)')
 if [[ -z $aa ]]; then
-  _debug "Имя файла ${tfn} не содержит путей. Добавим к имени ${path_files}: ${path_files}/${tfn}"
-  file_conf_client="${path_files}/${tfn}"
+  _debug "Имя файла ${tfn} не содержит путей. Добавим к имени ${path_out}: ${path_out}/${tfn}"
+  file_conf_client="${path_out}/${tfn}"
 fi
 # файл с конфигурацией сервера
 file_conf_server="${file_conf_server:=${name}-server.conf}"
 tfn="${file_conf_server}"
 aa=$(expr "$tfn" : '\(.*[/].*\)')
 if [[ -z $aa ]]; then
-  _debug "Имя файла ${tfn} не содержит путей. Добавим к имени ${path_files}: ${path_files}/${tfn}"
-  file_conf_server="${path_files}/${tfn}"
+  _debug "Имя файла ${tfn} не содержит путей. Добавим к имени ${path_out}: ${path_out}/${tfn}"
+  file_conf_server="${path_out}/${tfn}"
 fi
 #file_conf_server="${file_conf_server:=/etc/wireguard/wg0.conf}"
 
@@ -264,8 +266,8 @@ file_qr_code="${file_qr_code:=${name}-qr.png}"
 tfn="${file_qr_code}"
 aa=$(expr "$tfn" : '\(.*[/].*\)')
 if [[ -z $aa ]]; then
-  _debug "Имя файла ${tfn} не содержит путей. Добавим к имени ${path_files}: ${path_files}/${tfn}"
-  file_qr_code="${path_files}/${tfn}"
+  _debug "Имя файла ${tfn} не содержит путей. Добавим к имени ${path_out}: ${path_out}/${tfn}"
+  file_qr_code="${path_out}/${tfn}"
 fi
 
 restart_server="${restart_server:=0}"
@@ -273,7 +275,7 @@ restart_server="${restart_server:=0}"
 DEBUG_LEVEL="${DEBUG_LEVEL:=2}"
 _debug "name: $name"
 _debug "file_pubkey_server: $file_pubkey_server"
-_debug "pubkey_server: $pubkey_server"
+_debug "WG_PUBLIC_KEY_SERVER: $WG_PUBLIC_KEY_SERVER"
 
 _debug "debug: $DEBUG"
 _debug "debug_level: $DEBUG_LEVEL"
@@ -288,8 +290,11 @@ _debug "file_conf_server: ${file_conf_server}"
 _debug "file_qr_code: ${file_qr_code}"
 
 _debug "restart_server: ${restart_server}"
-_debug "path_files: ${path_files}"
+_debug "path_out: ${path_out}"
 
+if [[ -n $is_help ]]; then
+  exit 0
+fi
 #exit
 case "$action" in
   "create-key")
