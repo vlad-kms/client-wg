@@ -292,7 +292,7 @@ _debug "file_qr_code: ${file_qr_code}"
 _debug "restart_server: ${restart_server}"
 _debug "path_out: ${path_out}"
 
-if [[ -n $is_help ]]; then
+if [[ $is_help -ne 0 ]]; then
   exit 0
 fi
 #exit
