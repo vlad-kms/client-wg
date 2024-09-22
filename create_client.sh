@@ -206,10 +206,6 @@ for i; do
   esac
 done
 
-if ! [ -d "$path_out" ]; then
-  mkdir "$path_out"
-fi
-
 # public key server WireGuard
 file_pubkey_server="${file_pubkey_server:=/etc/wireguard/keys/server_pub}"
 #pubkey_server=       $(sed -En 's/(.*)$/\1/p' "$file_pubkey_server" 2>/dev/null)
@@ -292,9 +288,14 @@ _debug "file_qr_code: ${file_qr_code}"
 _debug "restart_server: ${restart_server}"
 _debug "path_out: ${path_out}"
 
-if [[ -n $is_help ]]; then
+if [[ $is_help -ne 0 ]]; then
   exit 0
 fi
+
+if ! [ -d "$path_out" ]; then
+  mkdir "$path_out"
+fi
+
 #exit
 case "$action" in
   "create-key")
