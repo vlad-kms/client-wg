@@ -1,0 +1,21 @@
+INST_SERVER_PUB_NIC=nameIFACE
+INST_SERVER_PUB_IP=IPv4 or IPv6
+INST_SERVER_WG_NIC=wireguard IFACE
+INST_SERVER_WG_IPV4=IPv4 wireguard server
+INST_SERVER_WG_IPV6=IPv6 wireguard server
+INST_SERVER_PORT=wireguard port
+INST_SERVER_PRIV_KEY=wireguatd private key
+INST_SERVER_PUB_KEY=wireguatd public key
+INST_CLIENT_DNS_1=DNS client 1
+INST_CLIENT_DNS_2=DNS client 2
+INST_ALLOWED_IPS=allowed address
+
+Если переменная выше определена, то при инсталяции WIREGUARD используется ее значение.
+Если нет, то ее значение запрашивается инетерактивно
+Имя файла задается при запуске ключом -c, --config. По-умолчанию: ./vars4install.conf
+В процессе установки эти уточненные значения сохраняются в файле заданным
+при запуске ключом -p, --params. По-умолчанию: ./params.conf
+В файле params.conf все переменные имеют теже имена, но без префикса INST_, например:
+SERVER_PUB_NIC=nameIFACE
+SERVER_PUB_IP=IPv4 or IPv6
+и т.д.
