@@ -1,0 +1,43 @@
+l;sdfgjldsfg
+fglsdfl;gj
+dfsg;sdflgk
+
+fdg;klfsd;genkey
+
+#!/bin/sh
+
+if [ -z "$1" ]; then
+    action='a'
+elif [ -n "$(echo "$1" | sed -En 's/^([d](el|elete)?)$/\1/ip')" ]; then
+    action='d'
+elif [ -n "$(echo "$1" | sed -En 's/^(a(dd)?)$/\1/ip')" ]; then
+    action='a'
+else
+    action=''
+fi
+echo "action: $action"
+#!/bin/bash
+# добавление правил
+if [ "${action}" = 'a' ];then
+    #IPv4
+    iptables -I INPUT -p udp --dport ${SERVER_PORT} -j ACCEPT
+    iptables -I FORWARD -i ${SERVER_PUB_NIC} -o ${SERVER_WG_NIC} -j ACCEPT
+    iptables -I FORWARD -i ${SERVER_WG_NIC} -j ACCEPT
+    iptables -t nat -A POSTROUTING -o ${SERVER_PUB_NIC} -j MASQUERADE
+    #IPv6
+    ip6tables -I FORWARD -i ${SERVER_WG_NIC} -j ACCEPT
+    ip6tables -t nat -A POSTROUTING -o ${SERVER_PUB_NIC} -j MASQUERADE
+fi
+#!/bin/fish
+
+# удаление правил
+if [ "${action}" = 'd' ];then
+    #IPv4
+    iptables -D INPUT -p udp --dport ${SERVER_PORT} -j ACCEPT
+    iptables -D FORWARD -i ${SERVER_PUB_NIC} -o ${SERVER_WG_NIC} -j ACCEPT
+    iptables -D FORWARD -i ${SERVER_WG_NIC} -j ACCEPT
+    iptables -t nat -D POSTROUTING -o ${SERVER_PUB_NIC} -j MASQUERADE
+    #IPv6
+    ip6tables -D FORWARD -i ${SERVER_WG_NIC} -j ACCEPT
+    ip6tables -t nat -D POSTROUTING -o ${SERVER_PUB_NIC} -j MASQUERADE
+fi

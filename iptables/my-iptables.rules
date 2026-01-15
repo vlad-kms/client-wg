@@ -1,0 +1,208 @@
+#!/bin/bash
+
+log=true
+
+action=""
+act_i=""
+
+if [ -z "$1" ]; then
+  action="-A"
+  act_i="-I"
+  is_add=true
+  #action=""
+else
+  if [[ "$1" == "a" ]] || [[ "$1" == "A" ]]; then
+	action="-A"
+	act_i="-I"
+  is_add=true
+	echo "1. $1=a"
+  elif [[ "$1" == "d" ]] || [[ "$1" == "D" ]]; then
+	action="-D"
+	act_i="-D"
+  is_add=false
+	echo "2. $1=d"
+  else
+	action=""
+	echo "3. $1="
+  fi
+fi
+
+ssh_port=22
+
+wireguard_port=32124
+wireguard_proto=udp
+
+wan="ens3"
+wan_ip="45.155.205.25"
+lan="wg0"
+lan_ip="10.16.19.1"
+lan_net='10.16.19.0/24'
+vpn="${lan}"
+vpn_ip="${lan_ip}"
+vpn_net="${lan_net}"
+
+inet_trust='cl.vpn.mrovo.ru,vi.vpn.mrovo.ru'
+vpn_trust="10.16.19.2,10.16.19.3,10.16.19.4,10.16.19.5,10.16.19.6,10.16.19.7,10.16.19.254,192.168.15.0/24,192.168.16.0/24"
+#vpn_oip="10.16.18.100,10.16.18.101,10.16.18.102,10.16.18.103"
+addr_home="192.168.15.0/24,192.168.16.0/24,192.168.22.0/24,192.168.25.0/24,192.168.26.0/24"
+
+if [ "$log" == "true" ]; then
+  echo "log: ${log}"
+  echo "is_add: ${is_add}"
+  echo "====================================="
+  echo "wan: ${wan}"
+  echo "wan_ip: ${wan_ip}"
+  echo "lan: ${lan}"
+  echo "lan_ip: ${lan_ip}"
+  echo "vpn: ${vpn}"
+  echo "vpn_ip: ${lan_ip}"
+  echo "action ${action}"
+fi
+
+if [ -z "$action" ]; then exit 1; fi
+
+#exit
+
+cipt="iptables"
+
+if [ "$is_add" = "true" ]; then
+  # DROP с предварительным логированием
+  #$cipt -X logdrop
+  $cipt -N logdrop
+  $cipt -A logdrop -m comment --comment "логирование отброшенных пакетов" -j LOG --log-prefix "DROPPED: " --log-level 4
+  $cipt -A logdrop -j DROP
+
+  # REJECT с предварительным логированием
+  #$cipt -X logdrop
+  $cipt -N logrej
+  $cipt -A logrej -m comment --comment "логирование отброшенных пакетов" -j LOG --log-prefix "REJECTED: " --log-level 4
+  $cipt -A logrej -p tcp -j REJECT --reject-with tcp-reset
+  $cipt -A logrej -p udp -j REJECT --reject-with icmp-port-unreachable
+  $cipt -A logrej -j REJECT --reject-with icmp-proto-unreach
+  
+  # bruteforce SSH
+  #$cipt -X sshchain
+  $cipt -N sshchain
+  
+  $cipt -A sshchain -m recent --name sshbuf --update --seconds 60 --hitcount 4 -m comment --comment "Bruteforce SSH" -j logdrop
+  $cipt -A sshchain -m recent --name sshbuf --set -m comment --comment "Bruteforce SSH" -j ACCEPT
+  #$cipt -A sshchain -m comment --comment "Разрешить SSH на wan" -j ACCEPT
+  #$cipt -A sshchain -i $vpn -p tcp --dport $ssh_port -m state --state NEW ! -s $vpn_trust -j DROP
+  
+  # ICMP анализ
+  $cipt -N icmp_cha
+  $cipt -A icmp_cha -i $wan -p icmp -s hk.avkms.ru -m comment --comment "ACCEPT icmp on trust" -j ACCEPT
+  $cipt -A icmp_cha -i $wan -p icmp -m comment --comment "ACCEPT icmp on wan" -j ACCEPT
+  #$cipt -A icmp_cha -i $wan -p icmp -m comment --comment "DROP icmp on wan" -j DROP
+  $cipt -A icmp_cha -i $vpn -p icmp -m comment --comment "ACCEPT icmp on vpn" -j ACCEPT
+  
+  #Защита от сканирования портов
+  $cipt -N scan_port
+  # запрет FIN-сканирования
+  $cipt -A scan_port -p tcp -m tcp --tcp-flags FIN,ACK FIN -j logdrop
+  # запрет X-сканирования
+  $cipt -A scan_port -p tcp -m tcp --tcp-flags FIN,SYN,RST,PSH,ACK,URG FIN,SYN,RST,PSH,ACK,URG -j logdrop
+  # запрет N-сканирования
+  $cipt -A scan_port -p tcp -m tcp --tcp-flags FIN,SYN,RST,PSH,ACK,URG NONE -j logdrop
+  # остальное
+  #$cipt -A scan_port -p tcp -m tcp --tcp-flags SYN,ACK,FIN,RST RST -m limit --limit 1/s --limit-burst 2 -j RETURN
+  # Проверка на стук в нерабочие порты (10 в час)
+  $cipt -A scan_port -m recent --name portscan --rcheck --seconds 3600 --hitcount 10 --rttl -j logdrop
+  # Вторая проверка на стук в нерабочие порты (4 в минуту)
+  $cipt -A scan_port -m recent --name portscan  --rcheck --seconds 60 --hitcount 2 --rttl -j logdrop
+  # Заносим адреса стучащихся в список
+  $cipt -A scan_port -m recent --name portscan  --set
+  # --name scanport
+  # Отбрасываем пакеты всех, кто превысил лимит на количество подключений
+  $cipt -A scan_port -j RETURN
+
+  # политика INPUT
+  $cipt -P INPUT DROP
+else
+  # политика INPUT
+  $cipt -P INPUT ACCEPT
+fi
+
+#INPUT
+$cipt -t filter "$action" INPUT -m conntrack --ctstate ESTABLISHED,RELATED -m comment --comment "Пропускать пакеты в установленных соединениях" -j ACCEPT
+$cipt -t filter "$action" INPUT -m conntrack --ctstate INVALID -m comment --comment "Удалить пакеты без инициализации" -j DROP
+$cipt -t filter "$action" INPUT -i lo -m comment --comment "Разрешить все на локальном интерфейсе" -j ACCEPT
+# проверка на сканирование портов
+$cipt -t filter "$action" INPUT -i $wan -j scan_port
+# wireguard VPN
+$cipt -t filter "$action" INPUT -i $wan -p $wireguard_proto --dport $wireguard_port -m comment --comment "Разрешить WIRREGUARD VPN" -j ACCEPT
+# temporary DROP all on WAN
+#$cipt -t filter "$action" INPUT -i $wan -m comment --comment "Удалить все пакеты на WAN" -j DROP
+#iperf
+$cipt -t filter "$action" INPUT -i $vpn -p tcp --dport 5201 -m conntrack --ctstate NEW -s 0.0.0.0/0 -m comment --comment "Разрешить iperf3" -j ACCEPT
+#slack
+$cipt -t filter "$action" INPUT -i $vpn -p tcp --dport 5000 -m conntrack --ctstate NEW -s 0.0.0.0/0 -m comment --comment "Разрешить iperf3" -j ACCEPT
+# icmp
+$cipt -t filter "$action" INPUT -i $wan -p icmp -j icmp_cha
+$cipt -t filter "$action" INPUT -i $vpn -p icmp -j icmp_cha
+# ssh bruteforce. Скорее всего не нужна цепочка sshchain, т.к. это поверяется в цепочке scan_port
+$cipt -t filter "$action" INPUT -i $vpn -p tcp --dport $ssh_port -m conntrack --ctstate NEW -s $vpn_trust -m comment --comment "Разрешить ssh с доверенных адресов" -j ACCEPT
+$cipt -t filter "$action" INPUT -i $wan -p tcp --dport $ssh_port -m conntrack --ctstate NEW -m comment --comment "Проверить разрешения для ssh" -j sshchain
+#snmp
+$cipt -t filter "$action" INPUT -i $vpn -p udp --dport 161 -m conntrack --ctstate NEW -s $vpn_trust -m comment --comment "Разрешить ssh с доверенных адресов" -j ACCEPT
+$cipt -t filter "$action" INPUT -i $wan -p udp --dport 161 -m conntrack --ctstate NEW -s $inet_trust -m comment --comment "Разрешить ssh с доверенных адресов" -j ACCEPT
+
+
+
+# MANGLE
+$cipt -t mangle "$action" PREROUTING -s 10.16.19.10 -m comment --comment "Пометить с 10.16.19.10" -j MARK --set-mark 100
+$cipt -t mangle "$action" PREROUTING -s 10.16.19.100 -m comment --comment "Пометить с 10.16.18.100" -j MARK --set-mark 100
+#$cipt -t mangle "$action" PREROUTING -s $vpn_oip -d $addr_home -m comment --comment "Пометить с vpn_oip" -j MARK --set-mark 120
+#$cipt -t mangle "$action" PREROUTING -s $vpn_oip -d 192.168.16.0/24 -m comment --comment "Пометить с 10.16.18.100" -j MARK --set-mark 120
+
+# FORWARD
+$cipt -t filter "$action" FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT -m comment --comment "Пропускать пакеты в установленных соединениях"
+$cipt -t filter "$action" FORWARD -m conntrack --ctstate INVALID -j DROP -m comment --comment "Удалить пакеты без инициализации"
+#$cipt -t filter "$action" FORWARD -i lo -j ACCEPT
+#$cipt -t filter "$action" FORWARD -p tcp --dport $ssh_port -j sshchain
+$cipt -t filter "$action" FORWARD -d 192.168.15.79 -m comment --comment "Allow пакеты на хост 192.168.15.79" -j ACCEPT
+$cipt -t filter "$action" FORWARD -d 192.168.15.0/24 -m mark --mark 100 -m comment --comment "Allow пакеты с меткой 100 в сеть 192.168.15/24" -j ACCEPT
+$cipt -t filter "$action" FORWARD -d 192.168.16.0/24 -m mark --mark 100 -m comment --comment "Allow пакеты с меткой 100 в сеть 192.168.16/24" -j ACCEPT
+$cipt -t filter "$action" FORWARD -m mark --mark 100 -m comment --comment "Drop пакеты с меткой 100" -j DROP
+$cipt -t filter "$action" FORWARD -m mark --mark 120 -m comment --comment "Drop пакеты с меткой 120" -j DROP
+
+# NAT
+$cipt -t nat "$act_i" POSTROUTING -o $wan -s 192.168.16.0/24 -j MASQUERADE
+$cipt -t nat "$act_i" POSTROUTING -o $wan -s 192.168.15.0/24 -j MASQUERADE
+#$cipt -t nat "$act_i" POSTROUTING -o $wan -s 192.168.20.0/24 -j MASQUERADE
+$cipt -t nat "$act_i" POSTROUTING -o $wan -s 192.168.22.0/24 -j MASQUERADE
+$cipt -t nat "$act_i" POSTROUTING -o $wan -s 192.168.25.0/24 -j MASQUERADE
+$cipt -t nat "$act_i" POSTROUTING -o $wan -s 192.168.26.0/24 -j MASQUERADE
+$cipt -t nat "$act_i" POSTROUTING -o $wan -s 10.16.19.0/24 -j MASQUERADE
+#iptables -t nat -A PREROUTING -i $wan -p tcp --dport 3390 -j DNAT --to-destination 192.168.100.1:3389
+$cipt -t nat "$action" PREROUTING -i $wan -p tcp --dport 80 -j DNAT --to-destination 192.168.15.79
+$cipt -t nat "$action" PREROUTING -i $wan -p tcp --dport 443 -j DNAT --to-destination 192.168.15.79
+#$cipt -t nat "$action" PREROUTING -i $wan -p tcp --dport 8080 -j DNAT --to-destination 192.168.16.79:80
+#$cipt -t nat "$action" PREROUTING -i $wan -p tcp --dport 8443 -j DNAT --to-destination 192.168.16.79:443
+#$cipt -t nat "$action" PREROUTING -i $wan -p tcp --dport 16626 -j DNAT --to-destination 192.168.15.202:16626
+#$cipt -t nat "$action" PREROUTING -i $wan -p udp --dport 16626 -j DNAT --to-destination 192.168.15.202:16626
+#$cipt -t nat "$action" PREROUTING -i $wan -p tcp --dport 16627 -j DNAT --to-destination 192.168.15.90:16627
+#$cipt -t nat "$action" PREROUTING -i $wan -p udp --dport 16627 -j DNAT --to-destination 192.168.15.90:16627
+#$cipt -t nat "$action" PREROUTING -i $wan -p tcp --dport 22 -j DNAT --to-destination 192.168.15.98:22
+
+if [ "$is_add" = "false" ]; then
+  # политика INPUT. Дублирование на всякий случай, чтобы не остаться без доступа
+  $cipt -P INPUT ACCEPT
+
+  # очистить и удалить мои цепочки в iptables
+  $cipt -F scan_port
+  $cipt -X scan_port
+
+  $cipt -F sshchain
+  $cipt -X sshchain
+
+  $cipt -F logdrop
+  $cipt -X logdrop
+
+  $cipt -F logrej
+  $cipt -X logrej
+
+  $cipt -F icmp_cha
+  $cipt -X icmp_cha
+  
+fi

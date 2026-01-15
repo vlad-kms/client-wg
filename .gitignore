@@ -1,5 +1,11 @@
 .git
 **.vscode
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+
 **.vault
 **_render
 **test
@@ -14,3 +20,10 @@
 **.bash_history
 **.out*
 *.conf
+
+nftables
+!nftables/*.rules
+!nftables/*.templates
+iptables
+!iptables/**.rules
+!iftables/*.templates
