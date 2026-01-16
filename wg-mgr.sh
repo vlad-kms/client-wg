@@ -31,7 +31,7 @@ allow_lxc=1
 # path_wg=/etc/wireguard
 # path_wg=.
 file_sysctl='/etc/sysctl.d/wg.conf'
-file_hand_params="hand_params.conf"
+file_hand_params="./hand_params.conf"
 
 oi6='[0-9a-fA-F]{1,4}'
 ai4='((1?[0-9][0-9]?|2[0-4][0-9]|25[0-5])\.){3}(1?[0-9][0-9]?|2[0-4][0-9]|25[0-5])'
@@ -564,9 +564,9 @@ inst_iptables(){
         if [ -f "${frf}" ]; then
             # есть файл с правилами для iptables
             # копируем файл-шаблон в каталог WIREGUARD
-            local script_rules="$(realpath "$(_join_path "${path_wg}" "apply_rules.sh")")"
-            local _fp="$(realpath "${file_params}")"
-            local _fhp="$(realpath "${file_hand_params}")"
+            local script_rules="$(realpath -m "$(_join_path "${path_wg}" "apply_rules.sh")")"
+            local _fp="$(realpath -m "${file_params}")"
+            local _fhp="$(realpath -m "${file_hand_params}")"
             debug "script_rules: ${script_rules}"
             cp "${frf}" "${script_rules}"
             # настроить переменные
@@ -826,7 +826,7 @@ wg_install() {
 	# Файл конфигурации WIREGUARD
     # FILE_CONF_WG="${path_wg}/${SERVER_WG_NIC}.conf"
     # FILE_CONF_WG="$(_join_path "${path_wg}" "${SERVER_WG_NIC}.conf")"
-    FILE_CONF_WG="$(realpath "$(_join_path "${path_wg}" "${SERVER_WG_NIC}.conf")")"
+    FILE_CONF_WG="$(realpath -m "$(_join_path "${path_wg}" "${SERVER_WG_NIC}.conf")")"
 	echo "[Interface]" > "${FILE_CONF_WG}"
     echo "Address = ${SERVER_WG_IPV4}/24,${SERVER_WG_IPV6}/64" >> "${FILE_CONF_WG}"
     echo "ListenPort = ${SERVER_PORT}" >> "${FILE_CONF_WG}"
@@ -945,14 +945,17 @@ main() {
     cmd=${cmd:=install}
     path_wg="$(_add_current_dot "${path_wg:=/etc/wireguard}")"
     file_config="$(_add_current_dot "${file_config:="$VARS_FOR_INSTALL"}")"
-    #file_params="$(realpath "$(_add_current_dot "${file_params:="$VARS_PARAMS"}")")"
+    #file_params="$(realpath -m "$(_add_current_dot "${file_params:="$VARS_PARAMS"}")")"
     file_params="$(_add_current_dot "${file_params:="$VARS_PARAMS"}")"
     file_hand_params="$(_add_current_dot "${file_hand_params}")"
-    local temp_path="$(_join_path "${path_wg}" '.clients')"
-    path_out="$(realpath "$(_add_current_dot "${path_out:=${temp_path}}")")"
+    local temp_path="$(_join_path "${path_wg}" ".clients")"
+    path_out="$(realpath -m "$(_add_current_dot "${path_out:=${temp_path}}")")"
     # создать каталоги
-    mkdir -p "${path_wg}"
-    mkdir -p "${path_out}"
+    mkdir -p "${path_wg}" > /dev/null
+    mkdir -p "${path_out}" > /dev/null
+    chown -R root:root "${path_wg}" > /dev/null
+    chown -R root:root "${path_out}" > /dev/null
+    
     file_rules_firewall="$(_add_current_dot "${file_rules_firewall:=./iptables/default-iptables.rules}")"
     use_ipv6=${use_ipv6:=0}
     dry_run=${dry_run:=0}
