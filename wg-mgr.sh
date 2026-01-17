@@ -39,7 +39,7 @@ oi6='[0-9a-fA-F]{1,4}'
 ai4='((1?[0-9][0-9]?|2[0-4][0-9]|25[0-5])\.){3}(1?[0-9][0-9]?|2[0-4][0-9]|25[0-5])'
 
 show_help() {
-    # -c -r -p -d -h -o -6 -w -f
+    # -c -r -p -d -h -o -6 -w -f -u
     msg "Использование:"
     msg "wg-mgr.sh [command] [options]"
     msg "command (одна из [ ${ARR_CMD} ], по-умолчанию install):"
@@ -69,6 +69,7 @@ show_help() {
     msg "        --dry-run              - команду не выполнять, только показать"
     msg "    -w, --wg-path <path>       - путь к установленному Wireguard"
     msg "    -f, --file-args <path>     - путь к файлу где хранятся аргументы для командной строки"
+    msg "    -u, --update-args          - флаг, что надо обновить файл с аргументами соответственно текущим аргументам командной строки"
     msg " "
 }
 
@@ -1020,6 +1021,10 @@ main() {
             is_file_args=is_file_args
             shift
             ;;
+        -u | --update-args)
+            # флаг, что надо обновить файл с аргументами соответственно текущим аргументам командной строки
+            is_update_file_args=1
+            ;;
         *)
             err "Неверный параметр: ${1}"
             return 1
@@ -1028,6 +1033,7 @@ main() {
 
         shift 1
     done
+    is_update_file_args="${is_update_file_args:=0}"
     file_config="$(_add_current_dot "${file_config:="$VARS_FOR_INSTALL"}")"
     file_args="$(realpath -m "$(_join_path "${_a_path_wg}" "$(_add_current_dot "${file_args:=${def_file_args}}")")")"
     # file_args="$(_add_current_dot "${file_args}")"
@@ -1062,8 +1068,9 @@ main() {
     set_var path_out "${path_out}" "${_a_path_out}"
     set_var file_rules_firewall "${file_rules_firewall}" "${_a_file_rules_firewall}"
     set_var use_ipv6 "${use_ipv6}" "${_a_use_ipv6}"
-    if [ -z "${is_file_args}" ] || [ ! -f "${file_args}" ]; then
-        file_args="$(_add_current_dot "${file_args:=${def_file_args}}")"
+    # if [ -z "${is_file_args}" ] || [ ! -f "${file_args}" ]; then
+    if [ -n "${is_update_file_args}" ] && [ "${is_update_file_args}" != "0" ]; then
+        # file_args="$(_add_current_dot "${file_args:=${def_file_args}}")"
         # записать в файл
         echo "path_wg=${path_wg}" > "${file_args}"
         echo "file_params=${file_params}" >> "${file_args}"
@@ -1078,6 +1085,7 @@ main() {
 
     debug "main BEGIN"
     debug "cmd_________________: ${cmd}"
+    debug "is_update_file_args_: ${is_update_file_args}"
     debug "is_debug____________: ${is_debug}"
     debug "file_config_________: ${file_config}"
     debug "file_params_________: ${file_params}"
