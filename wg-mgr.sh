@@ -609,12 +609,12 @@ wg_prepare_file_config() {
     # Подготовить файл с последними аргументами при установке WG
     echo "is_debug=${_a_is_debug:=0}"                       > "${file_args}"
     echo "dry_run=${_a_dry_run}"                            >> "${file_args}"
+    echo "use_ipv6=${_a_use_ipv6}"                          >> "${file_args}"
     echo "path_wg=${_a_path_wg}"                            >> "${file_args}"
     echo "file_params=${_a_file_params}"                    >> "${file_args}"
     echo "file_hand_params=${_a_file_hand_params}"          >> "${file_args}"
     echo "path_out=${_a_path_out}"                          >> "${file_args}"
     echo "file_rules_firewall=${_a_file_rules_firewall}"    >> "${file_args}"
-    echo "use_ipv6=${_a_use_ipv6}"                          >> "${file_args}"
     debug "wg_prepare_file_config END  =========================="
 }
 
@@ -1050,6 +1050,7 @@ main() {
     if [ -z "${is_file_args}" ] || [ ! -f "${file_args}" ]; then
         local _a_is_debug=${_a_is_debug:=0}
         local _a_dry_run=${_a_dry_run:=0}
+        local _a_use_ipv6=${_a_use_ipv6:=0}
         local _a_path_wg="$(_add_current_dot "${_a_path_wg:=/etc/wireguard}")"
         local temp_path="$(_join_path "${_a_path_wg}" "$(_add_current_dot "${_a_file_params:="$VARS_PARAMS"}")")"
         local _a_file_params="$(realpath -m "${temp_path}")"
@@ -1058,7 +1059,6 @@ main() {
         local temp_path="$(_join_path "${_a_path_wg}" ".clients")"
         local _a_path_out="$(realpath -m "$(_add_current_dot "${_a_path_out:=${temp_path}}")")"
         local _a_file_rules_firewall="$(_add_current_dot "${_a_file_rules_firewall:=./iptables/default-iptables.rules}")"
-        local _a_use_ipv6=${_a_use_ipv6:=0}
     fi
     set_var is_debug ${is_debug} ${_a_is_debug}
     set_var dry_run ${dry_run} ${_a_dry_run}
@@ -1072,15 +1072,14 @@ main() {
     if [ -n "${is_update_file_args}" ] && [ "${is_update_file_args}" != "0" ]; then
         # file_args="$(_add_current_dot "${file_args:=${def_file_args}}")"
         # записать в файл
-        echo "path_wg=${path_wg}" > "${file_args}"
+        echo "is_debug=${is_debug}" > "${file_args}"
+        echo "dry_run=${dry_run}" >> "${file_args}"
+        echo "use_ipv6=${use_ipv6}" >> "${file_args}"
+        echo "path_wg=${path_wg}" >> "${file_args}"
         echo "file_params=${file_params}" >> "${file_args}"
         echo "file_hand_params=${file_hand_params}" >> "${file_args}"
         echo "path_out=${path_out}" >> "${file_args}"
         echo "file_rules_firewall=${file_rules_firewall}" >> "${file_args}"
-        echo "use_ipv6=${use_ipv6}" >> "${file_args}"
-        # echo "file_config=${file_config}" >> "${file_args}"
-        echo "is_debug=${is_debug}" >> "${file_args}"
-        echo "dry_run=${dry_run}" >> "${file_args}"
     fi
 
     debug "main BEGIN"
