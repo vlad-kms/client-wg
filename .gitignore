@@ -20,6 +20,8 @@
 **.bash_history
 **.out*
 *.conf
+wg
+cl
 
 nftables
 !nftables/*.rules
