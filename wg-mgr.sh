@@ -31,12 +31,15 @@ allow_lxc=1
 # path_wg=/etc/wireguard
 # path_wg=.
 file_sysctl='/etc/sysctl.d/wg.conf'
-file_hand_params="./hand_params.conf"
+def_file_hand_params="./hand_params.conf"
+def_file_args='./last-args'
+is_file_args=''
 
 oi6='[0-9a-fA-F]{1,4}'
 ai4='((1?[0-9][0-9]?|2[0-4][0-9]|25[0-5])\.){3}(1?[0-9][0-9]?|2[0-4][0-9]|25[0-5])'
 
 show_help() {
+    # -c -r -p -d -h -o -6 -w -f
     msg "Использование:"
     msg "wg-mgr.sh [command] [options]"
     msg "command (одна из [ ${ARR_CMD} ], по-умолчанию install):"
@@ -65,6 +68,7 @@ show_help() {
     msg "    -6, --use-ipv6             - использовать IPv6 или нет для настройки локальных адресов WIREGUARD VPN. НЕ РЕАЛИЗОВАНО (пока)"
     msg "        --dry-run              - команду не выполнять, только показать"
     msg "    -w, --wg-path <path>       - путь к установленному Wireguard"
+    msg "    -f, --file-args <path>     - путь к файлу где хранятся аргументы для командной строки"
     msg " "
 }
 
@@ -90,6 +94,15 @@ debug() {
 # Вывод ошибок
 err() {
     msg "$@" "${RED}"
+}
+
+set_var() {
+    local vn="$1"
+    if [ -z "$3" ]; then
+        eval "${vn}=\"${2}\""
+    else
+        eval "${vn}=\"${3}\""
+    fi
 }
 
 # Проверить что текущий пользователь root, и если это не так, то прервать выполнение скрипта
@@ -155,7 +168,6 @@ check_os() {
 		err "Этот установщик на данный момент поддерживает только Debian, Ubuntu и Alpine"
 		exit 1
 	fi
-    # printf "%s" "${OS}"
     debug "OS: ${OS}"
     debug "VERSION_ID: ${VERSION_ID}"
     debug "check_os END ====================="
@@ -345,16 +357,68 @@ _join_path() {
         msg "Нельзя соединить каталоги $1 и $2, так как 2-й каталог является абсолютным"
         local res="${2}"
     fi
-    # local s="$(_startswith "$2" '/')"
-    # echo "=${s}=" >&2
     printf "%s" "${res}"
     # debug "_join_path END; res: ${res} ============================"
 }
 
+# Проверить наличие файла
+# ${1} (обязательный) - если !=0, то прерывать выполнение скрипта
+# ${2} (обязательный) - имя файла для проверки
+# ${3} (не обязательный) - сообщение об ошибке, по-умолчанию: Невозможно найти файл ${2}
+check_file_exists() {
+    local fn="${2}"
+    local err_msg="${3}"
+    #err "Невозможно открыть файл с конфигурацией для установки WIREGUARD ${file_config}"
+    local err_msg="${err_msg:=Невозможно найти файл ${2}}"
+    local is_break_script="${1}"
+    if [ ! -f "${2}" ]; then
+        # нет файла
+        if [ "${1}" = "0" ]; then
+            msg "${err_msg}"
+        else
+            err "${err_msg}"
+            exit 1
+        fi
+        return 1
+    else
+        return 0
+    fi
+}
+
+# установить права на каталог, его подкаталоги и файлы
+# $1 - каталог, по-умолчанию './'
+# $2 - маска файлов, по-умолчанию '*'
+set_mode() {
+    debug "set_mode BEGIN ==============================="
+    if [ -z "$1" ]; then
+        local _ct='./'
+    else
+        local _ct="$1"
+    fi
+    if [ -z "$2" ]; then
+        local _fm='*.sh'
+    else
+        local _fm="$2"
+    fi
+    if [ -z "${is_debug}" ] || [ "${is_debug}" = "0" ]; then
+        find "$_ct" -type d -exec chmod 0700 {} \; > /dev/null
+        find "$_ct" -type f -exec chmod 0600 {} \; > /dev/null
+        find "$_ct" -type f -name "$_fm" -exec chmod 0700 {} \; > /dev/null
+    else
+        echo "${GREEN}" >&2
+        find "$_ct" -type d -exec chmod -v 0700 {} \;
+        find "$_ct" -type f -exec chmod -v 0600 {} \;
+        find "$_ct" -type f -name "$_fm" -exec chmod -v 0700 {} \;
+        echo "${NC}" >&2
+    fi
+    debug "set_mode END =================================="
+}
+
 # Запрос
 _question() {
-	# echo -n "${PURPLE}${1}:${NC} "
-	# read -r -e -i "${2}" res_var
+    debug "_question BEGIN ========================"
+    # debug "_question args: '$@'"
+    # local res_var=''
     local _title_="$1"
     # Проверить, что опция -e поддерживается у read и подготовить к запуску read
     {
@@ -362,16 +426,17 @@ _question() {
     } > /dev/null 2>&1
     local t=$?
     if [ "$t" -eq "0" ]; then
-        local is_opt_e='-e'
-        local is_opt_i="-i ${2}"
+        local is_opt_e=' -e '
+        local is_opt_i=" -i ${2} "
     else
         local is_opt_e=''
         local is_opt_i=''
         [ -n "${3}" ] && local _title_="${_title_} (default ${2})"
     fi
     # запросить
-    read -rp "${_title_}: " $is_opt_e ${is_opt_i} res_var
+    read -rp "${_title_}: " $is_opt_e $is_opt_i res_var
     printf "%s" "${res_var}"
+    debug "_question END ==========================="
 }
 
 # Проверить что строка является валидным адресом IPv4
@@ -397,15 +462,13 @@ check_ipv4_mask() {
     # debug "check_ipv4_mask arg1: ${1} ===================="
     if [ -n "${1}" ]; then
         # убрать все лишнее кроме первой группы цифр
-        # val=$(echo "${1}" | sed -En "s/^[^0-9]*([0-9]*).*$/\1/p")
         val=$(echo "${1}" | sed -En "s/^[^0-9]*([0-9]*)[^0-9]?.*$/\1/p")
         # debug "Выделенное число: ${val}"
         # POSITIVE LOOKHEAD ^[^0-9:]*([1-9](?=[^0-9])|1|2[0-9](?=[^\d])|[3][0-2](?=[^\d])).*$
         #                   ^[^0-9:]*([1-9](?=[^0-9])|1[0-9](?=[^\d])|2[0-9](?=[^\d])|3[0-2](?=[^\d]))$
+        # POSITIVE LOOKHEAD не работает  в sed
         # число от 1 до 32
-        # r=$(echo "${val}" | sed -En "/^([1-9]|3[0-2]|2[0-9]|1[0-9])$/p")
         r=$(echo "${val}" | sed -En "/^([1-9]|(1|2)[0-9]|3[0-2])$/p")
-        # echo "r: $r" >&2
         if [ -n "$r" ]; then res=1; else res=0; fi
     fi
     # debug "check_ipv4_mask res: ${res} ===================="
@@ -431,13 +494,9 @@ check_ipv6_mask() {
     if [ -n "${1}" ]; then
         # убрать все лишнее кроме первой группы цифр
         val=$(echo "${1}" | sed -En "s/^[^0-9]*([0-9]*?).*$/\1/p")
-        # val=$(echo "${1}" | sed -En "s/^[^0-9]*([0-9]*)[^0-9]?.*$/\1/p")
         debug "Выделенное число: ${val}"
-        # POSITIVE LOOKHEAD ^[^0-9:]*([1-9](?=[^0-9])|1|2[0-9](?=[^\d])|[3][0-2](?=[^\d])).*$
-        #                   ^[^0-9:]*([1-9](?=[^0-9])|1[0-9](?=[^\d])|2[0-9](?=[^\d])|3[0-2](?=[^\d]))$
         # число от 1 до 128
         r=$(echo "${val}" | sed -En '/^([1-9]|(1|2|3|4|5|6|7|8|9)[0-9]|1[0-1][0-9]|12[0-8])$/p')
-        # echo "r: $r" >&2
         if [ -n "$r" ]; then res=1; else res=0; fi
     fi
     # debug "check_ipv6_mask res: ${res} =========================="
@@ -452,8 +511,6 @@ get_ip_mask_4() {
     # разделить на ip адрес и маску (ipv4/mask)
     ip=$(echo "${ip_full}"   | sed -En "s/^[^0-9/]*([0-9.]*)(\/([0-9]*)|[^/]?).*$/\1/p")
     mask=$(echo "${ip_full}" | sed -En "s/^[^0-9/]*([0-9.]*)(\/([0-9]*)|[^/]?).*$/\3/p")
-    # echo "1-ip: ${ip}" >&2
-    # echo "1-mask: ${mask}" >&2
     # Проверить что это ip
     # is_ipv4=$(check_ipv4 "${ip}")
     # if [ "${is_ipv4}" -eq "0" ]; then
@@ -548,6 +605,15 @@ wg_prepare_file_config() {
             fi
         done
     }
+    # Подготовить файл с последними аргументами при установке WG
+    echo "is_debug=${_a_is_debug:=0}"                       > "${file_args}"
+    echo "dry_run=${_a_dry_run}"                            >> "${file_args}"
+    echo "path_wg=${_a_path_wg}"                            >> "${file_args}"
+    echo "file_params=${_a_file_params}"                    >> "${file_args}"
+    echo "file_hand_params=${_a_file_hand_params}"          >> "${file_args}"
+    echo "path_out=${_a_path_out}"                          >> "${file_args}"
+    echo "file_rules_firewall=${_a_file_rules_firewall}"    >> "${file_args}"
+    echo "use_ipv6=${_a_use_ipv6}"                          >> "${file_args}"
     debug "wg_prepare_file_config END  =========================="
 }
 
@@ -576,9 +642,9 @@ inst_iptables(){
             #sed -i -E "/^#\!\/bin\/.*$/a\. ${file_params}" "${script_rules}"
             sed -i -E "1aif [ -f \"${_fp}\" \]\;  then \. \"${_fp}\"\;  fi" "${script_rules}"
             sed -i -E "2aif [ -f \"${_fhp}\" \]\; then \. \"${_fhp}\"\; fi" "${script_rules}"
-            echo "PostUp=if which resolvectl > /dev/null; then resolvectl dns ${SERVER_WG_NIC} 192.168.15.3; fi" >> "${FILE_CONF_WG}"
-            echo "PostUp=if which resolvectl > /dev/null; then resolvectl domain ${SERVER_WG_NIC} home.lan klinika.lan" >> "${FILE_CONF_WG}"
-            echo "PostUp=${script_rules}" >> "${FILE_CONF_WG}"
+            # echo "PostUp=if which resolvectl > /dev/null; then resolvectl dns ${SERVER_WG_NIC} 192.168.15.3; fi" >> "${FILE_CONF_WG}"
+            # echo "PostUp=if which resolvectl > /dev/null; then resolvectl domain ${SERVER_WG_NIC} home.lan klinika.lan; fi" >> "${FILE_CONF_WG}"
+            echo "PostUp=${script_rules} add" >> "${FILE_CONF_WG}"
             echo "PostDown=${script_rules} delete" >> "${FILE_CONF_WG}"
             # sed -i -r "s/^\s*(server_port\s*=\s*)[^ \t\n\r]+?(.*)$/\1${SERVER_PORT}\2/g" "${script_rules}"
             # sed -i -r "s/^\s*(server_pub_nic\s*=\s*)[^ \t\n\r]+?(.*)$/\1${SERVER_PUB_NIC}\2/g" "${script_rules}"
@@ -603,17 +669,20 @@ inst_nftables(){
     debug "inst_nftables END"
 }
 
-
 wg_install() {
     debug "wg_install BEGIN ============================================"
     # debug "file_config__: ${file_config}"
     # debug "file_params__: ${file_params}"
     # debug "${OS}"
-
     debug "file_config: ${file_config}"
     debug "pwd: $(pwd)"
-    . "${file_config}" # > /dev/null #2>&1
-    debug "wg_install BEGIN"
+    # проверить наличие файла с конфигурацией для установки WG
+    # check_file_exists 0 "${file_config}" "Нет файла с конфигурацией для установки WIREGUARD ${file_config}"
+    # check_file_exists 0 "${file_config}"
+    # if [ check_file_exists 0 "${file_config}" '' > /dev/null 2>&1 ]; then
+    if check_file_exists 0 "${file_config}"; then
+        . "${file_config}" #> /dev/null # 2>&1
+    fi
     # публичный интерфейс сервера
     if [ -z "${INST_SERVER_PUB_NIC}" ]; then
         # grep default | sed -E 's/.*\sdev\s*([^\s]*).*/\1/'
@@ -621,22 +690,27 @@ wg_install() {
 	    INST_SERVER_PUB_NIC=$(ip route | grep default | sed -E 's/.*\sdev\s*([a-zA-Z0-9]*)\s.*/\1/')
         INST_SERVER_PUB_NIC=$(_question "Внешний интерфейс" "${INST_SERVER_PUB_NIC}")
     fi
-    if ! ip link | grep -e ".*\s${INST_SERVER_PUB_NIC}" >/dev/null 2>&1; then
-        err "В файле ${file_config} или при вводе указан не верный внешний интерфейс ${INST_SERVER_PUB_NIC}";
+    if [ -z "${INST_SERVER_PUB_NIC}" ]
+    then
+        err "В файле ${file_config} или при вводе не указан внешний сетевой интерфейс";
+        exit 1
+    fi
+    if ! ip link show ${INST_SERVER_PUB_NIC} > /dev/null 2>&1; then
+        err "В файле ${file_config} или при вводе указан неверный внешний сетевой интерфейс ${INST_SERVER_PUB_NIC}";
         exit 1
     fi
     # публичный адрес сервера
     # 1. Взять из вывода ip -4 addr show
     # 2. Если пустой вывод, то нет IPv4. Поэтому берем IPv6 вывод из ip -6 addr show
     # 3. _ip_dev_pub_ - это адрес IPv4 или IPv6
-    [ -z "${INST_SERVER_PUB_IP}" ] && {
-    	local _ip_dev_pub_=$(ip -4 addr show "$INST_SERVER_PUB_NIC" | sed -nE 's|^.*\sinet\s([^/]*)/.*\sscope global.*$|\1|p') # | awk '{print $1}' | head -1)
-        if [ -z "${INST_SERVER_PUB_IP}" ]; then
-            local _ip_dev_pub_=$(ip -6 addr show "$INST_SERVER_PUB_NIC" | sed -nE 's|^.*\sinet6\s([^/]*)/.*\sscope global.*$|\1|p')
+    if [ -z "${INST_SERVER_PUB_IP}" ]; then
+    	local _ip_dev_pub_=$(ip -4 addr show "${INST_SERVER_PUB_NIC}" | sed -nE 's/^.*\sinet\s([^/]*)\/.*\sscope global.*$/\1/p' | awk '{print $1}' | head -1)
+        if [ -z "${_ip_dev_pub_}" ]; then
+            local _ip_dev_pub_=$(ip -6 addr show "${INST_SERVER_PUB_NIC}" | sed -nE 's|^.*\sinet6\s([^/]*)/.*\sscope global.*$|\1|p' | awk '{print $1}' | head -1)
         fi
         title_quest="Публичный IPv4 или IPv6 сервера"
         INST_SERVER_PUB_IP=$(_question "${title_quest}" "${_ip_dev_pub_}")
-    }
+    fi
     if [ -z "${INST_SERVER_PUB_IP}" ] ||
         (
             [ "$(check_ipv4 ${INST_SERVER_PUB_IP})" -eq "0" ] && [ "$(check_ipv6 ${INST_SERVER_PUB_IP})" -eq "0" ]
@@ -679,9 +753,6 @@ wg_install() {
         INST_SERVER_WG_IPV6=''
         INST_SERVER_WG_IPV6_MASK=''
     fi
-    # echo $INST_SERVER_WG_IPV6 >&2
-    # echo $INST_SERVER_WG_IPV6_MASK >&2
-    # exit
     # # Маска IPv6 интерфейса сервера
     # if [ "${use_ipv6}" -ne "0" ]; then
     #     if [ -z "${INST_SERVER_WG_IPV6_MASK}" ]; then
@@ -737,6 +808,7 @@ wg_install() {
     if [ "${OS}" = 'ubuntu' ] || ([ "${OS}" = 'debian' ] && [ "${VERSION_ID}" -gt "10" ]); then
         # apt-get update > /dev/null 2>&1
         exec_cmd apt-get update
+        # exit
         # install_packages apt-get install -y wireguard iptables systemd-resolved qrencode
         install_packages wireguard iptables systemd-resolved qrencode ipcalc
     elif [ "${OS}" = 'alpine' ]; then
@@ -788,7 +860,6 @@ wg_install() {
     else
         # wg установлен
         INST_SERVER_PUB_KEY=$(echo "${INST_SERVER_PRIV_KEY}" | wg pubkey 2>/dev/null)
-        # INST_SERVER_PUB_KEY=$(echo "${INST_SERVER_PRIV_KEY}" | wg pubkey)
     fi
 
 	# Сохранить параметры WireGuard
@@ -820,15 +891,30 @@ wg_install() {
     debug "CLIENT_DNS_2: ${CLIENT_DNS_2}"
     debug "ALLOWED_IPS: ${ALLOWED_IPS}"
 
-	# Включить форвардинг на сервере
-	echo "net.ipv4.ip_forward = 1" > "${file_sysctl}"
-    echo "net.ipv6.conf.all.forwarding = 1" >> "${file_sysctl}"
+	# Настройка sysctl Включить форвардинг на сервере
+    if [ -z "${dry_run}" ] || [ "${dry_run}" -eq "0" ]; then
+        echo "net.ipv4.ip_forward = 1" > "${file_sysctl}"
+        echo "net.ipv6.conf.all.forwarding = 1" >> "${file_sysctl}"
+    else
+        exec_cmd echo "net.ipv4.ip_forward = 1 > ${file_sysctl}"
+        exec_cmd echo "net.ipv6.conf.all.forwarding = 1 >> ${file_sysctl}"
+    fi
 	# Файл конфигурации WIREGUARD
     # FILE_CONF_WG="${path_wg}/${SERVER_WG_NIC}.conf"
     # FILE_CONF_WG="$(_join_path "${path_wg}" "${SERVER_WG_NIC}.conf")"
     FILE_CONF_WG="$(realpath -m "$(_join_path "${path_wg}" "${SERVER_WG_NIC}.conf")")"
 	echo "[Interface]" > "${FILE_CONF_WG}"
-    echo "Address = ${SERVER_WG_IPV4}/24,${SERVER_WG_IPV6}/64" >> "${FILE_CONF_WG}"
+    local _addr_wg_serv=''
+    if [ -n "${SERVER_WG_IPV4}" ]; then
+        local _addr_wg_serv="${SERVER_WG_IPV4}/${SERVER_WG_IPV4_MASK}"
+    fi
+    if [ -n "${SERVER_WG_IPV6}" ]; then
+        if [ -n "${_addr_wg_serv}" ]; then
+            local _addr_wg_serv="${_addr_wg_serv},"
+        fi
+        local _addr_wg_serv="${_addr_wg_serv}${SERVER_WG_IPV6}/${SERVER_WG_IPV6_MASK}"
+    fi
+    echo "Address = ${_addr_wg_serv}"  >> "${FILE_CONF_WG}"
     echo "ListenPort = ${SERVER_PORT}" >> "${FILE_CONF_WG}"
     echo "PrivateKey = ${SERVER_PRIV_KEY}" >> "${FILE_CONF_WG}"
     # права на файл конфигурации
@@ -863,10 +949,6 @@ wg_install() {
         err "    .............."
     fi
 
-    # echo "INST_SERVER_PRIV_KEY --- $INST_SERVER_PRIV_KEY"
-    # echo "INST_SERVER_PUB_KEY --- $INST_SERVER_PUB_KEY"
-    # echo "is_opt_e: ${is_opt_e}"
-    # exit
     debug "wg_install END =============================================="
 }
 
@@ -880,7 +962,6 @@ main() {
         local cmd="$1"
         shift
     fi
-    # echo $@
     # Проверить на допустимость команды, она должна быть одной из списка ARR_CMD
     # if [[ ! " ${ARR_CMD[@]} " =~ " ${cmd} " ]]; then
     # if [[ ! " ${ARR_CMD} " =~ " ${cmd} " ]]; then
@@ -899,19 +980,19 @@ main() {
             shift
             ;;
         -p | --params)
-            file_params="$(_trim "$2")"
+            local _a_file_params="$(_trim "$2")"
             shift
             ;;
         -o | --out-path)
-            path_out="$(_trim "$2")"
+            local _a_path_out="$(_trim "$2")"
             shift
             ;;
         -w | --wg-path)
-            path_wg="$(_trim "$2")"
+            local _a_path_wg="$(_trim "$2")"
             shift
             ;;
         --debug)
-            is_debug='1'
+            local _a_is_debug='1'
             ;;
         -h | --help)
             show_help
@@ -919,18 +1000,24 @@ main() {
             ;;
         -6 | --use-ipv6)
             # TODO пока не реализовано, поэтому use_ipv6 = 0. Не реализовано из-за iptables6
-            use_ipv6='0'
-            use_ipv6='1'
+            local _a_use_ipv6='0'
+            local _a_use_ipv6='1'
             ;;
         --dry-run)
-            dry_run='1'
+            local _a_dry_run='1'
             ;;
         -r | --rules-iptables)
-            file_rules_firewall="$(_trim "$2")"
+            local _a_file_rules_firewall="$(_trim "$2")"
             shift
             ;;
         -d | --hand-params)
-            file_hand_params="${2}"
+            local _a_file_hand_params="${2}"
+            shift
+            ;;
+        -f | --file-args)
+            # путь к файлу где хранятся аргументы для командной строки"
+            file_args="${2}"
+            is_file_args=is_file_args
             shift
             ;;
         *)
@@ -941,28 +1028,55 @@ main() {
 
         shift 1
     done
-    is_debug=${is_debug:=0}
-    cmd=${cmd:=install}
-    path_wg="$(_add_current_dot "${path_wg:=/etc/wireguard}")"
     file_config="$(_add_current_dot "${file_config:="$VARS_FOR_INSTALL"}")"
-    #file_params="$(realpath -m "$(_add_current_dot "${file_params:="$VARS_PARAMS"}")")"
-    file_params="$(_add_current_dot "${file_params:="$VARS_PARAMS"}")"
-    file_hand_params="$(_add_current_dot "${file_hand_params}")"
-    local temp_path="$(_join_path "${path_wg}" ".clients")"
-    path_out="$(realpath -m "$(_add_current_dot "${path_out:=${temp_path}}")")"
-    # создать каталоги
-    mkdir -p "${path_wg}" > /dev/null
-    mkdir -p "${path_out}" > /dev/null
-    chown -R root:root "${path_wg}" > /dev/null
-    chown -R root:root "${path_out}" > /dev/null
-    
-    file_rules_firewall="$(_add_current_dot "${file_rules_firewall:=./iptables/default-iptables.rules}")"
-    use_ipv6=${use_ipv6:=0}
-    dry_run=${dry_run:=0}
+    file_args="$(realpath -m "$(_join_path "${_a_path_wg}" "$(_add_current_dot "${file_args:=${def_file_args}}")")")"
+    # file_args="$(_add_current_dot "${file_args}")"
+    if [ -f "${file_args}" ]; then
+        . "${file_args}"
+    fi
+    if [ -n "${file_args}" ]; then
+        local path_file_args="$(dirname ${file_args})"
+        if [ -n "${path_file_args}" ]; then
+            mkdir -p "${path_file_args}" > /dev/null
+        fi
+    fi
+    cmd=${cmd:=install}
+    if [ -z "${is_file_args}" ] || [ ! -f "${file_args}" ]; then
+        local _a_is_debug=${_a_is_debug:=0}
+        local _a_dry_run=${_a_dry_run:=0}
+        local _a_path_wg="$(_add_current_dot "${_a_path_wg:=/etc/wireguard}")"
+        local temp_path="$(_join_path "${_a_path_wg}" "$(_add_current_dot "${_a_file_params:="$VARS_PARAMS"}")")"
+        local _a_file_params="$(realpath -m "${temp_path}")"
+        local temp_path="$(_join_path "${_a_path_wg}" "$(_add_current_dot "${_a_file_hand_params:=${def_file_hand_params}}")")"
+        local _a_file_hand_params="$(realpath -m "${temp_path}")"
+        local temp_path="$(_join_path "${_a_path_wg}" ".clients")"
+        local _a_path_out="$(realpath -m "$(_add_current_dot "${_a_path_out:=${temp_path}}")")"
+        local _a_file_rules_firewall="$(_add_current_dot "${_a_file_rules_firewall:=./iptables/default-iptables.rules}")"
+        local _a_use_ipv6=${_a_use_ipv6:=0}
+    fi
+    set_var is_debug ${is_debug} ${_a_is_debug}
+    set_var dry_run ${dry_run} ${_a_dry_run}
+    set_var path_wg "${path_wg}" "${_a_path_wg}"
+    set_var file_params "${file_params}" "${_a_file_params}"
+    set_var file_hand_params "${file_hand_params}" "${_a_file_hand_params}"
+    set_var path_out "${path_out}" "${_a_path_out}"
+    set_var file_rules_firewall "${file_rules_firewall}" "${_a_file_rules_firewall}"
+    set_var use_ipv6 "${use_ipv6}" "${_a_use_ipv6}"
+    if [ -z "${is_file_args}" ] || [ ! -f "${file_args}" ]; then
+        file_args="$(_add_current_dot "${file_args:=${def_file_args}}")"
+        # записать в файл
+        echo "path_wg=${path_wg}" > "${file_args}"
+        echo "file_params=${file_params}" >> "${file_args}"
+        echo "file_hand_params=${file_hand_params}" >> "${file_args}"
+        echo "path_out=${path_out}" >> "${file_args}"
+        echo "file_rules_firewall=${file_rules_firewall}" >> "${file_args}"
+        echo "use_ipv6=${use_ipv6}" >> "${file_args}"
+        # echo "file_config=${file_config}" >> "${file_args}"
+        echo "is_debug=${is_debug}" >> "${file_args}"
+        echo "dry_run=${dry_run}" >> "${file_args}"
+    fi
 
     debug "main BEGIN"
-    # echo "cmd: ${cmd}"
-    # echo "is_debug: ${is_debug}"
     debug "cmd_________________: ${cmd}"
     debug "is_debug____________: ${is_debug}"
     debug "file_config_________: ${file_config}"
@@ -973,16 +1087,27 @@ main() {
     debug "path_wg____________ : ${path_wg}"
     debug "use_ipv6____________: ${use_ipv6}"
     debug "dry_run_____________: ${dry_run}"
+    debug "file_args___________: ${file_args}"
+    
     #
     debug "pwd: $(pwd)"
-    # echo "$(_join_path "${path_wg}" '/qwerty')"
-    # echo "$(_trim '////qwewe///' '/')"
-    # echo "$(_rtrim '////qwewe///' '/')"
-    # echo "$(_ltrim '////qwewe///' '/')"
-    # echo "$(_ltrim '...////qwewe///..' '.')"
-    # echo "$(_rtrim '...////qwewe///..' '.')"
-    # echo "$(_ltrim './././/qwewe///..' '\.\/')"
-    # exit
+    # создать каталоги
+    local path_file_params="$(dirname ${file_params})"
+    debug "Создаем каталоги: ${path_wg} ; ${path_out} ; ${path_file_params}"
+    if [ -n "${path_wg}" ]; then mkdir -p "${path_wg}" > /dev/null; fi
+    if [ -n "${path_out}" ]; then mkdir -p "${path_out}" > /dev/null; fi
+    if [ -n "${path_file_params}" ]; then mkdir -p "${path_file_params}" > /dev/null; fi
+    # создать каталоги
+    chown -R root:root "${path_wg}" > /dev/null
+    chown -R root:root "${path_out}" > /dev/null
+    chown -R root:root "${path_file_params}" > /dev/null
+    # установить права на созданные каталоги, их подкаталоги и файлы
+    # find ./ -type d -exec chmod 0700 {} \;
+    # find ./ -type f -exec chmod 0600 {} \;
+    # find ./ -type f -name '*.sh' -exec chmod 0700 {} \;
+    set_mode "${path_wg}"
+    set_mode "${path_out}"
+    set_mode "${path_file_params}"
 
     case "$cmd" in
         "install")
@@ -1009,12 +1134,29 @@ main() {
     debug "main END"
 }
 
-# ps -p $$
-# ps
-# msg "GREEN$SHELL$NC"
-# echo -e "GREEN$SHELL$NC"
-# echo -e "GREEN$0$NC"
-# msg "rewq"
-# exit
-
 main $@
+
+
+    # if [ -n "${_a_is_debug}" ]; then
+    #     is_debug=${_a_is_debug}
+    # fi
+    # if [ -n "${_a_dry_run}" ]; then
+    #     dry_run=${_a_dry_run}
+    # fi
+    # if [ -n "${_a_path_wg}" ]; then
+    #     path_wg="${_a_path_wg}"
+    # fi
+    # if [ -n "${_a_file_params}" ]; then
+    #     file_params="$(realpath -m "$(_add_current_dot "${_a_file_params}")")"
+    # fi
+    # #file_params="$(_add_current_dot "${file_params:="$VARS_PARAMS"}")"
+    # if [ -n "${_a_file_hand_params}" ]; then
+    #     file_hand_params="$(_add_current_dot "${_a_file_hand_params}")"
+    # fi
+    # local temp_path="$(_join_path "${path_wg}" ".clients")"
+    # if [ -n "${_a_path_out}" ]; then
+    #     path_out="$(realpath -m "$(_add_current_dot "${_a_path_out:=${temp_path}}")")"
+    # fi
+    # if [ -n "${_a_file_rules_firewall}" ]; then
+    #     file_rules_firewall="$(_add_current_dot "${_a_file_rules_firewall:=./iptables/default-iptables.rules}")"
+    # fi
