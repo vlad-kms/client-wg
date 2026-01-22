@@ -852,42 +852,42 @@ wg_prepare_file_config() {
     # публичный интерфейс сервера
 	INST_SERVER_PUB_NIC=$(ip route | grep default | sed -E 's/.*\sdev\s*([a-zA-Z0-9]*)\s.*/\1/')
     # INST_SERVER_PUB_NIC=$(_question "Внешний интерфейс" "${INST_SERVER_PUB_NIC}")
-    echo "INST_SERVER_PUB_NIC=${INST_SERVER_PUB_NIC}" > "${file_config}"
+    printf "INST_SERVER_PUB_NIC=${INST_SERVER_PUB_NIC}\n" > "${file_config}"
     # публичный адрес сервера
     INST_SERVER_PUB_IP=$(ip -4 addr show "$INST_SERVER_PUB_NIC" | sed -nE 's|^.*\sinet\s([^/]*)/.*\sscope global.*$|\1|p') # | awk '{print $1}' | head -1)
     if [ -z "${INST_SERVER_PUB_IP}" ]; then
         INST_SERVER_PUB_IP=$(ip -6 addr show "$INST_SERVER_PUB_NIC" | sed -nE 's|^.*\sinet6\s([^/]*)/.*\sscope global.*$|\1|p')
     fi
-    echo "INST_SERVER_PUB_IP=${INST_SERVER_PUB_IP}" >> "${file_config}"
+    printf "INST_SERVER_PUB_IP=${INST_SERVER_PUB_IP}\n" >> "${file_config}"
     # WIREGUARD interface NIC
-    echo "INST_SERVER_WG_NIC=${DEF_SERVER_WG_NIC}" >> "${file_config}"
+    printf "INST_SERVER_WG_NIC=${DEF_SERVER_WG_NIC}\n" >> "${file_config}"
     # WIREGUARD SERVER IPv4/MASK
-    echo "INST_SERVER_WG_IPV4=${DEF_SERVER_WG_IPV4}/${DEF_SERVER_WG_IPV4_MASK}" >> "${file_config}"
+    printf "INST_SERVER_WG_IPV4=${DEF_SERVER_WG_IPV4}/${DEF_SERVER_WG_IPV4_MASK}\n" >> "${file_config}"
     # WIREGUARD SERVER IPv6/MASK
-    echo "INST_SERVER_WG_IPV6=${DEF_SERVER_WG_IPV6}/${DEF_SERVER_WG_IPV6_MASK}" >> "${file_config}"
+    printf "INST_SERVER_WG_IPV6=${DEF_SERVER_WG_IPV6}/${DEF_SERVER_WG_IPV6_MASK}\n" >> "${file_config}"
     # WIREGUARD SERVER PORT
 	RANDOM_PORT=$(shuf -i49152-65535 -n1)
-    echo "INST_SERVER_PORT=${RANDOM_PORT}" >> "${file_config}"
+    printf "INST_SERVER_PORT=${RANDOM_PORT}\n" >> "${file_config}"
     # PRIVATE and PUBLIC KEY SERVER
     if command -v wg > /dev/null 2>&1; then
         # WIREGUARD SERVER PRIVATE KEY
         _priv_key=$(wg genkey)
-        echo "INST_SERVER_PRIV_KEY=${_priv_key}" >> "${file_config}"
+        printf "INST_SERVER_PRIV_KEY=${_priv_key}\n" >> "${file_config}"
         # WIREGUARD SERVER PUBLIC KEY
         debug "PUBLIC_KEY: $(echo ${_priv_key} | wg pubkey)"
-        echo "INST_SERVER_PUB_KEY=$(echo ${_priv_key} | wg pubkey)" >> "${file_config}"
+        printf "INST_SERVER_PUB_KEY=$(echo ${_priv_key} | wg pubkey)\n" >> "${file_config}"
     else
         # WIREGUARD SERVER PRIVATE KEY
-        echo "INST_SERVER_PRIV_KEY=" >> "${file_config}"
+        printf "INST_SERVER_PRIV_KEY=\n" >> "${file_config}"
         # WIREGUARD SERVER PUBLIC KEY
-        echo "INST_SERVER_PUB_KEY=" >> "${file_config}"
+        printf "INST_SERVER_PUB_KEY=\n" >> "${file_config}"
     fi
     # FIRST DNS FOR CLIENT 
-    echo "INST_CLIENT_DNS_1=${DEF_CLIENT_DNS_1}" >> "${file_config}"
+    printf "INST_CLIENT_DNS_1=${DEF_CLIENT_DNS_1}\n" >> "${file_config}"
     # SECOND DNS FOR CLIENT 
-    echo "INST_CLIENT_DNS_2=${DEF_CLIENT_DNS_2}" >> "${file_config}"
+    printf "INST_CLIENT_DNS_2=${DEF_CLIENT_DNS_2}\n" >> "${file_config}"
     # Разрешенные адреса для клиента
-    echo "INST_ALLOWED_IPS=${DEF_ALLOWED_IPS}" >> "${file_config}"
+    printf "INST_ALLOWED_IPS=${DEF_ALLOWED_IPS}\n" >> "${file_config}"
     [ "$is_debug" -ne "0" ] && {
         cat "${file_config}" | while read line; do
             if [ -n "$(echo ${line} | grep INST_SERVER_PRIV_KEY)" ]; then
@@ -936,8 +936,8 @@ inst_iptables(){
             #sed -i -E "/^#\!\/bin\/.*$/a\. ${file_params}" "${script_rules}"
             sed -i -E "1aif [ -f \"${_fp}\" \]\;  then \. \"${_fp}\"\;  fi" "${script_rules}"
             sed -i -E "2aif [ -f \"${_fhp}\" \]\; then \. \"${_fhp}\"\; fi" "${script_rules}"
-            echo "PostUp=${script_rules} add" >> "${FILE_CONF_WG}"
-            echo "PostDown=${script_rules} delete" >> "${FILE_CONF_WG}"
+            printf "PostUp=${script_rules} add\n" >> "${FILE_CONF_WG}"
+            printf "PostDown=${script_rules} delete\n" >> "${FILE_CONF_WG}"
             # sed -i -r "s/^\s*(server_port\s*=\s*)[^ \t\n\r]+?(.*)$/\1${SERVER_PORT}\2/g" "${script_rules}"
             # sed -i -r "s/^\s*(server_pub_nic\s*=\s*)[^ \t\n\r]+?(.*)$/\1${SERVER_PUB_NIC}\2/g" "${script_rules}"
             # sed -i -r "s/^\s*(server_wg_nic\s*=\s*)[^ \t\n\r]+?(.*)$/\1${SERVER_WG_NIC}\2/g" "${script_rules}"
@@ -1175,19 +1175,19 @@ wg_install() {
     fi
 
 	# Сохранить параметры WireGuard
-	echo "SERVER_PUB_NIC=${INST_SERVER_PUB_NIC}" > "${file_params}"
-	echo "SERVER_PUB_IP=${INST_SERVER_PUB_IP}" >> "${file_params}"
-	echo "SERVER_WG_NIC=${INST_SERVER_WG_NIC}" >> "${file_params}"
-	echo "SERVER_WG_IPV4=${INST_SERVER_WG_IPV4}" >> "${file_params}"
-	echo "SERVER_WG_IPV4_MASK=${INST_SERVER_WG_IPV4_MASK}" >> "${file_params}"
-	echo "SERVER_WG_IPV6=${INST_SERVER_WG_IPV6}" >> "${file_params}"
-	echo "SERVER_WG_IPV6_MASK=${INST_SERVER_WG_IPV6_MASK}" >> "${file_params}"
-	echo "SERVER_PORT=${INST_SERVER_PORT}" >> "${file_params}"
-	echo "SERVER_PRIV_KEY=${INST_SERVER_PRIV_KEY}" >> "${file_params}"
-	echo "SERVER_PUB_KEY=${INST_SERVER_PUB_KEY}" >> "${file_params}"
-	echo "CLIENT_DNS_1=${INST_CLIENT_DNS_1}" >> "${file_params}"
-	echo "CLIENT_DNS_2=${INST_CLIENT_DNS_2}" >> "${file_params}"
-	echo "ALLOWED_IPS=${INST_ALLOWED_IPS}" >> "${file_params}"
+    printf "SERVER_PUB_NIC=${INST_SERVER_PUB_NIC}\n" > "${file_params}"
+	printf "SERVER_PUB_IP=${INST_SERVER_PUB_IP}\n" >> "${file_params}"
+	printf "SERVER_WG_NIC=${INST_SERVER_WG_NIC}\n" >> "${file_params}"
+	printf "SERVER_WG_IPV4=${INST_SERVER_WG_IPV4}\n" >> "${file_params}"
+	printf "SERVER_WG_IPV4_MASK=${INST_SERVER_WG_IPV4_MASK}" >> "${file_params}"
+	printf "SERVER_WG_IPV6=${INST_SERVER_WG_IPV6}\n" >> "${file_params}"
+	printf "SERVER_WG_IPV6_MASK=${INST_SERVER_WG_IPV6_MASK}\n" >> "${file_params}"
+	printf "SERVER_PORT=${INST_SERVER_PORT}\n" >> "${file_params}"
+	printf "SERVER_PRIV_KEY=${INST_SERVER_PRIV_KEY}\n" >> "${file_params}"
+	printf "SERVER_PUB_KEY=${INST_SERVER_PUB_KEY}\n" >> "${file_params}"
+	printf "CLIENT_DNS_1=${INST_CLIENT_DNS_1}\n" >> "${file_params}"
+	printf "CLIENT_DNS_2=${INST_CLIENT_DNS_2}\n" >> "${file_params}"
+	printf "ALLOWED_IPS=${INST_ALLOWED_IPS}\n" >> "${file_params}"
     . "${file_params}"
     debug "SERVER_PUB_NIC: ${SERVER_PUB_NIC}"
     debug "SERVER_PUB_IP: ${SERVER_PUB_IP}"
@@ -1207,10 +1207,10 @@ wg_install() {
     local c1="$(exec_cmd echo "net.ipv4.ip_forward = 1")"
     local c2="$(exec_cmd echo "net.ipv6.conf.all.forwarding = 1")"
     if [ -n "${c1}" ] && ([ -z "${dry_run}" ] || [ "${dry_run}" = "0" ]); then
-        echo "${c1}" > "${file_sysctl}"
+        printf "${c1}\n" > "${file_sysctl}"
     fi
     if [ -n "${c2}" ] && ([ -z "${dry_run}" ] || [ "${dry_run}" = "0" ]); then
-        echo "${c2}" > "${file_sysctl}"
+        printf "${c2}\n" > "${file_sysctl}"
     fi
     # if [ -z "${dry_run}" ] || [ "${dry_run}" -eq "0" ]; then
     #     echo "net.ipv4.ip_forward = 1" > "${file_sysctl}"
@@ -1223,7 +1223,7 @@ wg_install() {
     # FILE_CONF_WG="${path_wg}/${SERVER_WG_NIC}.conf"
     # FILE_CONF_WG="$(_join_path "${path_wg}" "${SERVER_WG_NIC}.conf")"
     FILE_CONF_WG="$(realpath -m "$(_join_path "${path_wg}" "${SERVER_WG_NIC}.conf")")"
-	echo "[Interface]" > "${FILE_CONF_WG}"
+	printf "[Interface]\n" > "${FILE_CONF_WG}"
     local _addr_wg_serv=''
     if [ -n "${SERVER_WG_IPV4}" ]; then
         local _addr_wg_serv="${SERVER_WG_IPV4}/${SERVER_WG_IPV4_MASK}"
@@ -1234,9 +1234,9 @@ wg_install() {
         fi
         local _addr_wg_serv="${_addr_wg_serv}${SERVER_WG_IPV6}/${SERVER_WG_IPV6_MASK}"
     fi
-    echo "Address = ${_addr_wg_serv}"  >> "${FILE_CONF_WG}"
-    echo "ListenPort = ${SERVER_PORT}" >> "${FILE_CONF_WG}"
-    echo "PrivateKey = ${SERVER_PRIV_KEY}" >> "${FILE_CONF_WG}"
+    printf "Address = ${_addr_wg_serv}\n"  >> "${FILE_CONF_WG}"
+    printf "ListenPort = ${SERVER_PORT}\n" >> "${FILE_CONF_WG}"
+    printf "PrivateKey = ${SERVER_PRIV_KEY}\n" >> "${FILE_CONF_WG}"
     # права на файл конфигурации
     chmod 0700 "${path_wg}"
     chmod 0600 "${FILE_CONF_WG}"
