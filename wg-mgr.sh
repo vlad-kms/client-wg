@@ -1333,7 +1333,10 @@ main() {
 
     is_update_file_args="${is_update_file_args:=0}"
     file_config="$(_add_current_dot "${file_config:="$VARS_FOR_INSTALL"}")"
-    file_args="$(realpath -m "$(_join_path "${_a_path_wg}" "$(_add_current_dot "${file_args:=${def_file_args}}")")")"
+    mkdir -p "$(dirname "${file_config}")"
+    # file_args="$(realpath -m "$(_join_path "${_a_path_wg}" "$(_add_current_dot "${file_args:=${def_file_args}}")")")"
+    file_args="$(_add_current_dot "${file_args:=${def_file_args}}")"
+    mkdir -p "$(dirname "${file_args}")"
     # file_args="$(_add_current_dot "${file_args}")"
     if [ -f "${file_args}" ]; then
         . "${file_args}"
@@ -1483,7 +1486,7 @@ main() {
     debug "main END"
 }
 
-check_os 2
+check_os 2 > /dev/null
 
 main $@
 

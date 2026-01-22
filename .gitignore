@@ -22,6 +22,7 @@
 *.conf
 wg
 cl
+last*
 
 nftables
 !nftables/*.rules
