@@ -217,8 +217,8 @@ check_os() {
         # if ! command -v virt-what >/dev/null; then
         if [  -n "${list_packet}" ]; then
             if [ "$is_debug" = "0" ]; then
-                # if ! (apk update > /dev/null && apk add --progress-fd 2 ${list_packet} > /dev/null); then
-                if ! (apk update && apk add --progress-fd 2 ${list_packet}); then
+                # if ! (apk update --progress-fd 2 > /dev/null && apk add --progress-fd 2 ${list_packet} > /dev/null); then
+                if ! (apk update --progress-fd 2 && apk add --progress-fd 2 ${list_packet}); then
                     local _msg_="Невозможно установить пакеты ${list_packet}."
                     if [ "${is_out_err}" -eq "0" ]; then
                         err "${_msg_}"
@@ -228,7 +228,7 @@ check_os() {
                     local res_exit=1
                 fi
             else
-                if ! (apk update && apk add --progress-fd 2 ${list_packet}); then
+                if ! (apk update --progress-fd 2 && apk add --progress-fd 2 ${list_packet}); then
                     local _msg_="Невозможно установить пакеты ${list_packet}."
                     if [ "${is_out_err}" -eq "0" ]; then
                         err "${_msg_}"
@@ -255,6 +255,34 @@ check_os() {
     debug "check_os END ====================="
     printf "%s" "id=${OS}; version_id=${VERSION_ID}"
     return ${res_exit}
+}
+
+# вытащить из строки вида "имя1=знач1; имя2=знач2 имя3=знач3..." значение по имени
+# $1    - строка с переменными
+# $2    - имя переменной
+# $3    - значение по-умолчанию
+get_item_str() {
+    debug "get_item_str BEGIN --- arg1: ${1} ;;; arg2: $2 ;;; arg3: $3 ==========================="
+    if [ -n "${1}" ]; then
+        local val="$(echo "${1}" | sed -En "s/^(.*[; \t])??(${2})\s*=\s*([^'\";][^; ]*|[\"][^\"]*\"|['][^']*')[; \t]?.*$/\3/p")"
+        if [ -z "${val}" ]; then
+            if [ -n "$3" ]; then
+                local val="$3"
+                local res=0
+            else
+                local val=""
+                local res=1
+            fi
+        else
+            local res=0
+        fi
+        printf "${val}"
+    else
+        printf ''
+        local res=1
+    fi
+    debug "get_item_str END --- val: ${val}; res: ${res} ==========================="
+    return $res
 }
 
 # Проверить что допустимые виртуалки
@@ -300,6 +328,8 @@ install_packages() {
     if [ -z "${ID+x}" ] || [ -z "{VERSION_ID+x}" ]; then
         # . "${OS_RELEASE}"
         local os_data=$(check_os 2)
+        ID="$(get_item_str "${os_data}" 'os')"
+        VERSION_ID="$(get_item_str "${os_data}" 'version')"
     fi
     if [ "${ID}" = 'debian' ]; then
         local _cmd_="apt-get install -y $@"
@@ -313,7 +343,7 @@ install_packages() {
     if [ -z "${dry_run}" ] || [ "${dry_run}" -eq "0" ]; then
     	# if ! "$@"; then
         if [ -z "${is_debug}" ] || [ "${is_debug}" -eq "0" ]; then
-            ${_cmd_} > /dev/null 2>&1
+            ${_cmd_} > /dev/null
         else
             ${_cmd_} >&2
         fi
@@ -870,14 +900,14 @@ wg_prepare_file_config() {
         done
     }
     # Подготовить файл с последними аргументами при установке WG
-    echo "is_debug=${_a_is_debug:=0}"                       > "${file_args}"
-    echo "dry_run=${_a_dry_run}"                            >> "${file_args}"
-    echo "use_ipv6=${_a_use_ipv6}"                          >> "${file_args}"
-    echo "path_wg=${_a_path_wg}"                            >> "${file_args}"
-    echo "file_params=${_a_file_params}"                    >> "${file_args}"
-    echo "file_hand_params=${_a_file_hand_params}"          >> "${file_args}"
-    echo "path_out=${_a_path_out}"                          >> "${file_args}"
-    echo "file_rules_firewall=${_a_file_rules_firewall}"    >> "${file_args}"
+    printf "is_debug=${_a_is_debug:=0}\n"                       > "${file_args}"
+    printf "dry_run=${_a_dry_run}\n"                            >> "${file_args}"
+    printf "use_ipv6=${_a_use_ipv6}\n"                          >> "${file_args}"
+    printf "path_wg=${_a_path_wg}\n"                            >> "${file_args}"
+    printf "file_params=${_a_file_params}\n"                    >> "${file_args}"
+    printf "file_hand_params=${_a_file_hand_params}\n"          >> "${file_args}"
+    printf "path_out=${_a_path_out}\n"                          >> "${file_args}"
+    printf "file_rules_firewall=${_a_file_rules_firewall}\n"    >> "${file_args}"
     debug "wg_prepare_file_config END  =========================="
 }
 
@@ -1354,9 +1384,10 @@ main() {
     done
     # Установить пакеты, требующиеся для работы скрипта, отладочных сообщений нет совсем
     # установятся они до инициализации аргументов
-    printf "Установка пакетов, если требуется...\n"
-    local r=check_os 2
-    printf "Установка пакетов закончилась\n"
+    msg "Установка пакетов, если требуется...\n"
+    local r="$(check_os 2)"
+# echo "OS --- $OS"
+    msg "Установка пакетов закончилась\n"
 
     is_update_file_args="${is_update_file_args:=0}"
     file_config="$(_add_current_dot "${file_config:="$VARS_FOR_INSTALL"}")"
@@ -1408,15 +1439,15 @@ main() {
     # if [ -z "${is_file_args}" ] || [ ! -f "${file_args}" ]; then
     if [ -n "${is_update_file_args}" ] && [ "${is_update_file_args}" != "0" ]; then
         # file_args="$(_add_current_dot "${file_args:=${def_file_args}}")"
-        # записать в файл арнументы текущего запуска
-        echo "is_debug=${is_debug}" > "${file_args}"
-        echo "dry_run=${dry_run}" >> "${file_args}"
-        echo "use_ipv6=${use_ipv6}" >> "${file_args}"
-        echo "path_wg=${path_wg}" >> "${file_args}"
-        echo "file_params=${file_params}" >> "${file_args}"
-        echo "file_hand_params=${file_hand_params}" >> "${file_args}"
-        echo "path_out=${path_out}" >> "${file_args}"
-        echo "file_rules_firewall=${file_rules_firewall}" >> "${file_args}"
+        # записать в файл аргументы текущего запуска
+        printf "is_debug=${is_debug}\n" > "${file_args}"
+        printf "dry_run=${dry_run}\n" >> "${file_args}"
+        printf "use_ipv6=${use_ipv6}\n" >> "${file_args}"
+        printf "path_wg=${path_wg}\n" >> "${file_args}"
+        printf "file_params=${file_params}\n" >> "${file_args}"
+        printf "file_hand_params=${file_hand_params}\n" >> "${file_args}"
+        printf "path_out=${path_out}\n" >> "${file_args}"
+        printf "file_rules_firewall=${file_rules_firewall}\n" >> "${file_args}"
     fi
     # аргументы, которые не сохраняются, не имеют значений по-умолчанию и не настраиваются предварительно
     if [ "${cmd}" = "client" ]; then
@@ -1470,6 +1501,9 @@ main() {
             check_root
             # Проверить что выполняется в поддерживаемой OS, в противном случае прервать выполнение
             local os_data="$(check_os)"
+            ID="$(get_item_str "${os_data}" 'id')"
+            OS="${ID}"
+            VERSION_ID="$(get_item_str "${os_data}" 'version_id')"
             if [ "$?" -ne "0" ]; then
                 exit 1
             fi
