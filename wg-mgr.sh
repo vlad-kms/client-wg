@@ -148,6 +148,15 @@ is_root() {
 #   raspbian >=10
 #   ubuntu >=18.4
 #   alpine
+# АРГУМЕНТЫ:
+# $1 - как выводить сообщения
+#   =0, то вывод красным цветом
+#   =1, то вывод оранжевым цветом
+#   =2, то НЕ выводить сообщений
+# ВОЗВРАТ:
+# $?
+#   =0, поддерживаемая ОС
+#   =1, НЕ поддерживаемая ОС
 check_os() {
     debug "check_os BEGIN ==================="
     debug "check_os args: $@"
@@ -205,22 +214,38 @@ check_os() {
         if ! command -v virt-what >/dev/null; then
                 local list_packet="${list_packet} virt-what"
         fi
-        if ! command -v virt-what >/dev/null; then
+        # if ! command -v virt-what >/dev/null; then
+        if [  -n "${list_packet}" ]; then
             if [ "$is_debug" = "0" ]; then
-                if ! (apk update > /dev/null && apk add ${list_packet} > /dev/null); then
-                    err "Невозможно установить пакеты ${list_packet}."
+                # if ! (apk update > /dev/null && apk add --progress-fd 2 ${list_packet} > /dev/null); then
+                if ! (apk update && apk add --progress-fd 2 ${list_packet}); then
+                    local _msg_="Невозможно установить пакеты ${list_packet}."
+                    if [ "${is_out_err}" -eq "0" ]; then
+                        err "${_msg_}"
+                    elif [ "${is_out_err}" -eq "1" ]; then
+                        msg "${_msg_}"
+                    fi
                     local res_exit=1
                 fi
             else
-                if ! (apk update && apk add ${list_packet}); then
-                    err "Невозможно установить пакеты ${list_packet}."
+                if ! (apk update && apk add --progress-fd 2 ${list_packet}); then
+                    local _msg_="Невозможно установить пакеты ${list_packet}."
+                    if [ "${is_out_err}" -eq "0" ]; then
+                        err "${_msg_}"
+                    elif [ "${is_out_err}" -eq "1" ]; then
+                        msg "${_msg_}"
+                    fi
                     local res_exit=1
                 fi
             fi
 		fi
 	else
 		local _msg_="Этот установщик на данный момент поддерживает только Debian, Ubuntu и Alpine"
-        err "${_msg_}"
+        if [ "${is_out_err}" -eq "0" ]; then
+            err "${_msg_}"
+        elif [ "${is_out_err}" -eq "1" ]; then
+            msg "${_msg_}"
+        fi
         # exit 1
         local res_exit=1
 	fi
@@ -1330,7 +1355,7 @@ main() {
     # Установить пакеты, требующиеся для работы скрипта, отладочных сообщений нет совсем
     # установятся они до инициализации аргументов
     printf "Установка пакетов, если требуется...\n"
-    check_os 2
+    local r=check_os 2
     printf "Установка пакетов закончилась\n"
 
     is_update_file_args="${is_update_file_args:=0}"
