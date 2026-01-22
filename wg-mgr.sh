@@ -9,8 +9,9 @@ PURPLE='\033[35m'
 BLUE='\033[36m'
 
 OS_RELEASE="/etc/os-release"
-# ARR_CMD=("install" "new" "prepare")
-ARR_CMD='install new prepare'
+# ARR_CMD=("install" "uninstall" "new" "prepare")
+ARR_CMD='install uninstall client prepare'
+ACTION_CLIENT='a add new d del delete list l'
 
 VARS_FOR_INSTALL="./vars4install.conf"
 VARS_PARAMS="./params.conf"
@@ -39,25 +40,37 @@ oi6='[0-9a-fA-F]{1,4}'
 ai4='((1?[0-9][0-9]?|2[0-4][0-9]|25[0-5])\.){3}(1?[0-9][0-9]?|2[0-4][0-9]|25[0-5])'
 
 show_help() {
-    # -c -r -p -d -h -o -6 -w -f -u
+    # -c -r -p -d -h -o -6 -w -f -u -a -l -n
     msg "Использование:"
     msg "wg-mgr.sh [command] [options]"
     msg "command (одна из [ ${ARR_CMD} ], по-умолчанию install):"
     msg "    install    - установка пакета wireguard и других, требующихся для работы (iptables, qrencode и др.)"
     msg "        options:"
-    msg "            -c, --config <filename>         - файл с данными для инсталяции"
-    msg "            -r, --rules-iptables <filename> - файл с правилами iptables (ip6tables)"
-    msg "            -p, --params <filename>         - создается файл с уточненными данными после инсталяции"
-    msg "            -d, --hand-params <filename>    - файл созданный вручную для определения дополнительных переменных"
+    msg "            -c, --config <filename>        - файл с данными для инсталяции"
+    msg "            -r, --rules-iptables <filename>- файл с правилами iptables (ip6tables)"
+    msg "            -p, --params <filename>        - создается файл с уточненными данными после инсталяции"
+    msg "            -d, --hand-params <filename>   - файл созданный вручную для определения дополнительных переменных"
+    msg " "
+    msg "    uninstall  - удаление пакета wireguard и других, установленных вместе с ним, а также удалить все созданные каталоги и файлы"
     msg " "
     msg "    prepare    - подготовить файл с данными для инсталяции"
     msg "        options:"
     msg "            -c, --config <filename> - файл для подготовки данных для инсталяции"
     msg " "
-    msg "    new        - создание клиента и файлов для него: файл настройки для клиента, файл QRcode для клиента"
+    msg "    client     - работа с клиентами: добавить, удалить, получить список"
     msg "        options:"
-    msg "            -p, --params <filename>         - созданный при install файл с уточненными данными используется для создания файлов клиента"
-    msg "            -d, --hand-params <filename> - файл созданный вручную для определения дополнительных переменных для настройки клиентов"
+    msg "            -a, --action <action>          - указывает что делать: создать клиента, удалить клиента или получить список клиентов"
+    msg "                                             значение должно быть из ACTION_CLIENT (add, del, list)"
+    msg "                          a | add | new   :  создать файлы настроек для клиента на сервере и клиенте, файл QRcode для клиента"
+    msg "                          d | del | delete:  удалить клиента из файла настроек сервера"
+    msg "                          l | list        :  получить список клиентов из файла настроек сервера"
+    msg "            -p, --params <filename>        - созданный при install файл с уточненными данными используется для создания файлов клиента"
+    msg "            -d, --hand-params <filename>   - файл созданный вручную для определения дополнительных переменных для настройки клиентов"
+    msg "                --ip4 <address/mask>       - ipv4 адрес с маской клиента"
+    msg "                --ip6 <address/mask>       - ipv6 адрес с маской клиента"
+    msg "            -e, --allowed-ips <network>    - список ip адресов, которым разрешен доступ в формате 1.1.1.0/24,fdoo::0/64,2.2.2.2/32"
+    msg "                                             по-умолчанию только адрес клиента"
+    msg "            -n, --name <name client>       - имя клиента"
     msg " "
     msg "common options:"
     msg "    -h, --help                 - описание использования скрипта"
@@ -137,41 +150,86 @@ is_root() {
 #   alpine
 check_os() {
     debug "check_os BEGIN ==================="
+    debug "check_os args: $@"
+    debug "check_os args: $@"
+    if [ -z "$@" ] || [ "${1}" = "0" ]; then
+        # выводить сообщение как ошибку, красным цветом
+        local is_out_err=0
+    elif [ "${1}" = "1" ]; then
+        # выводить сообщение как предупреждение, оранжевым цветом
+        local is_out_err=1
+    elif [ "${1}" = "2" ]; then
+        # НЕ выводить сообщение вообще
+        local is_out_err=2
+    else
+        local is_out_err=0
+    fi
+    local res_exit=0
 	. "${OS_RELEASE}"
 	OS="${ID}"
 	if [ "${OS}" = "debian" ] || [ "${OS}" = "raspbian" ]; then
 		if [ "${VERSION_ID}" -lt "10" ]; then
-			err "Ваша версия Debian (${VERSION_ID}) не поддерживается. Используйте Debian 10 Buster или старше"
-			exit 1
+            local _msg_="Ваша версия Debian (${VERSION_ID}) не поддерживается. Используйте Debian 10 Buster или старше"
+            if [ "${is_out_err}" -eq "0" ]; then
+			    err "${_msg_}"
+            elif [ "${is_out_err}" -eq "1" ]; then
+			    msg "${_msg_}"
+            fi
+			# exit 1
+            local res_exit=1
 		fi
 		OS=debian # overwrite if raspbian
 	elif [ "${OS}" = "ubuntu" ]; then
 		RELEASE_YEAR=$(echo "${VERSION_ID}" | cut -d'.' -f1)
 		if [ "${RELEASE_YEAR}" -lt "18" ]; then
-			err "Ваша версия Ubuntu (${VERSION_ID}) не поддерживается. Используйте Ubuntu 18.04 or старше"
-			exit 1
+			local _msg_="Ваша версия Ubuntu (${VERSION_ID}) не поддерживается. Используйте Ubuntu 18.04 or старше"
+            if [ "${is_out_err}" -eq "0" ]; then
+			    err "${_msg_}"
+            elif [ "${is_out_err}" -eq "1" ]; then
+			    msg "${_msg_}"
+            fi
+			# exit 1
+            local res_exit=1
 		fi
 	# elif [ -e '/etc/alpine-release' ]; then
     elif [ "${OS}" == "alpine" ]; then
 		# OS=alpine
-		if ! command -v virt-what >/dev/null; then
+        # установить требуемые пакеты
+        # проверить что установлен coreutils
+        if apk list --installed | grep coreutils > /dev/null; then
+            local list_packet=''
+        else
+            local list_packet='coreutils'
+        fi
+        # проверить что установлен virt-what
+        if ! command -v virt-what >/dev/null; then
+                local list_packet="${list_packet} virt-what"
+        fi
+        if ! command -v virt-what >/dev/null; then
             if [ "$is_debug" = "0" ]; then
-                if ! (apk update > /dev/null && apk add virt-what > /dev/null); then
-                    err "Невозможно установить virt-what. Продолжить без проверки работы на виртуальной машине."
+                if ! (apk update > /dev/null && apk add ${list_packet} > /dev/null); then
+                    err "Невозможно установить пакеты ${list_packet}."
+                    local res_exit=1
                 fi
             else
-                if ! (apk update && apk add virt-what); then
-                    err "Невозможно установить virt-what. Продолжить без проверки работы на виртуальной машине."
+                if ! (apk update && apk add ${list_packet}); then
+                    err "Невозможно установить пакеты ${list_packet}."
+                    local res_exit=1
                 fi
             fi
 		fi
 	else
-		err "Этот установщик на данный момент поддерживает только Debian, Ubuntu и Alpine"
-		exit 1
+		local _msg_="Этот установщик на данный момент поддерживает только Debian, Ubuntu и Alpine"
+        err "${_msg_}"
+        # exit 1
+        local res_exit=1
 	fi
     debug "OS: ${OS}"
     debug "VERSION_ID: ${VERSION_ID}"
+    debug "res_exit: ${res_exit}"
     debug "check_os END ====================="
+    printf "%s" "id=${OS}; version_id=${VERSION_ID}"
+    return ${res_exit}
 }
 
 # Проверить что допустимые виртуалки
@@ -215,8 +273,8 @@ install_packages() {
     # ttt="$@"
     # if [ -z "${ID}" ] || [ -z "{VERSION_ID}" ]; then
     if [ -z "${ID+x}" ] || [ -z "{VERSION_ID+x}" ]; then
-        . "${OS_RELEASE}"
-        # check_os
+        # . "${OS_RELEASE}"
+        local os_data=$(check_os 2)
     fi
     if [ "${ID}" = 'debian' ]; then
         local _cmd_="apt-get install -y $@"
@@ -406,11 +464,11 @@ set_mode() {
         find "$_ct" -type f -exec chmod 0600 {} \; > /dev/null
         find "$_ct" -type f -name "$_fm" -exec chmod 0700 {} \; > /dev/null
     else
-        echo "${GREEN}" >&2
-        find "$_ct" -type d -exec chmod -v 0700 {} \;
-        find "$_ct" -type f -exec chmod -v 0600 {} \;
-        find "$_ct" -type f -name "$_fm" -exec chmod -v 0700 {} \;
-        echo "${NC}" >&2
+        printf "${GREEN}\n" >&2
+        find "$_ct" -type d -exec chmod -v 0700 {} \; >&2
+        find "$_ct" -type f -exec chmod -v 0600 {} \; >&2
+        find "$_ct" -type f -name "$_fm" -exec chmod -v 0700 {} \; >&2
+        printf "${NC}\n" >&2
     fi
     debug "set_mode END =================================="
 }
@@ -441,15 +499,24 @@ _question() {
 }
 
 # Проверить что строка является валидным адресом IPv4
-check_ipv4() {
-    res=0
-    # debug "check_ipv4 arg1: ${1} ========================"
+check_ipv4_addr() {
+    # debug "check_ipv4_addr arg1: ${1} ========================"
     if [ -n "${1}" ]; then
         r=$(echo "${1}" | sed -rn "/(^|\s)$ai4(\s|$)/p")
-        if [ -n "$r" ]; then res=1; else res=0; fi
+        # if [ -n "$r" ]; then local res=1; else local res=0; fi
+        if [ -n "$r" ]; then
+            # валидный адрес
+            return 0
+        else
+            # НЕ валидный адрес
+            return 1
+        fi
+    else
+        # НЕ валидный адрес
+        return 1
     fi
-    # debug "check_ipv4 res: ${res} ======================="
-    printf "%d" ${res}
+    # debug "check_ipv4_addr res: ${res} ======================="
+    # printf "%d" ${res}
     if [ "${res}" = "0" ];then
         return 1
     else
@@ -459,95 +526,272 @@ check_ipv4() {
 
 # Проверить что строка является валидной маской IPv4 (число 0-32)
 check_ipv4_mask() {
-    res=0
-    # debug "check_ipv4_mask arg1: ${1} ===================="
+    debug "check_ipv4_mask arg1: ${1} ===================="
     if [ -n "${1}" ]; then
         # убрать все лишнее кроме первой группы цифр
         val=$(echo "${1}" | sed -En "s/^[^0-9]*([0-9]*)[^0-9]?.*$/\1/p")
-        # debug "Выделенное число: ${val}"
+        debug "Выделенное число для маски: ${val}"
         # POSITIVE LOOKHEAD ^[^0-9:]*([1-9](?=[^0-9])|1|2[0-9](?=[^\d])|[3][0-2](?=[^\d])).*$
         #                   ^[^0-9:]*([1-9](?=[^0-9])|1[0-9](?=[^\d])|2[0-9](?=[^\d])|3[0-2](?=[^\d]))$
         # POSITIVE LOOKHEAD не работает  в sed
-        # число от 1 до 32
+        # проверить маска ipv4 валидная, т.е. что это число от 1 до 32
         r=$(echo "${val}" | sed -En "/^([1-9]|(1|2)[0-9]|3[0-2])$/p")
-        if [ -n "$r" ]; then res=1; else res=0; fi
+        if [ -n "$r" ]; then
+            # валидная маска
+            return 0
+        else
+            # НЕ валидная маска
+            return 1
+        fi
+    else
+        # НЕ валидная маска
+        return 1
     fi
-    # debug "check_ipv4_mask res: ${res} ===================="
-    printf "%d" ${res}
 }
 
 # Проверить что строка является валидным адресом IPv6
-check_ipv6() {
-    res=0
-    # debug "check_ipv6 arg1: ${1} =========================="
+check_ipv6_addr() {
+    debug "check_ipv6_addr arg1: ${1} =========================="
     if [ -n "${1}" ]; then
         r=$(echo "${1}" | sed -rn "/(^|\s)(($oi6:){7,7}$oi6|($oi6:){1,7}:|($oi6:){1,6}:$oi6|($oi6:){1,5}(:$oi6){1,2}|($oi6:){1,4}(:$oi6){1,3}|($oi6:){1,3}(:$oi6){1,4}|($oi6:){1,2}(:$oi6){1,5}|$oi6:((:$oi6){1,6})|:((:$oi6){1,7}|:)|fe80:(:$oi6){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}$ai4|($oi6:){1,4}:$ai4)($|\s)/p")
-        if [ -n "$r" ]; then res=1; else res=0; fi
+        if [ -n "$r" ]; then
+            # валидный адрес
+            return 0
+        else
+            # НЕ валидный адрес
+            return 1
+        fi
+    else
+        # НЕ валидный адрес
+        return 1
     fi
-    # debug "check_ipv6 res: ${res} ========================="
-    printf "%d" ${res}
 }
 
 # Проверить что строка является валидной маской IPv6 (число 0-128)
 check_ipv6_mask() {
-    res=0
-    # debug "check_ipv6_mask arg1: ${1} =========================="
+    # local res=0
+    debug "check_ipv6_mask BEGIN arg1: ${1} =========================="
     if [ -n "${1}" ]; then
         # убрать все лишнее кроме первой группы цифр
         val=$(echo "${1}" | sed -En "s/^[^0-9]*([0-9]*?).*$/\1/p")
-        debug "Выделенное число: ${val}"
-        # число от 1 до 128
+        debug "Выделенное число для маски: ${val}"
+        # проверить, что это число от 1 до 128
         r=$(echo "${val}" | sed -En '/^([1-9]|(1|2|3|4|5|6|7|8|9)[0-9]|1[0-1][0-9]|12[0-8])$/p')
-        if [ -n "$r" ]; then res=1; else res=0; fi
+        if [ -n "$r" ]; then
+            # валидная маска
+            return 0
+        else
+            # НЕ валидная маска
+            return 1
+        fi
+    else
+        # НЕ валидная маска
+        return 1
     fi
-    # debug "check_ipv6_mask res: ${res} =========================="
-    printf "%d" ${res}
 }
 
 # Распарсить строку IPv4 в адрес и маску
+# $1 - ipv4/mask
+# $2 - ip адрес по-умолчанию
+# $3 - маска по-умолчанию
+# $4 - флаг что для возврата, если в ${1} ошибочные адрес или маска, то будут подставляться или "${2}" или "${3}"
+#      если он присутствует и не равен 0, то будут подстановки
+#      если он отсутствует или   равен 0, то подстановок не будет и вместо ошибочного элемента будет возвращаться "" (пустая строка)
 get_ip_mask_4() {
     ip_full=$1
     # debug "get_ip_mask_4 BEGIN ================================="
     # debug "ARGS: ${ip_full}"
+    if [ -z "$4" ] || [ "$4" = "0" ]; then
+        local flag_use_def=0
+    else
+        local flag_use_def=1
+    fi
     # разделить на ip адрес и маску (ipv4/mask)
-    ip=$(echo "${ip_full}"   | sed -En "s/^[^0-9/]*([0-9.]*)(\/([0-9]*)|[^/]?).*$/\1/p")
-    mask=$(echo "${ip_full}" | sed -En "s/^[^0-9/]*([0-9.]*)(\/([0-9]*)|[^/]?).*$/\3/p")
+    local ip=$(echo "${ip_full}"   | sed -En "s/^[^0-9/]*([0-9.]*)(\/([0-9]*)|[^/]?).*$/\1/p")
+    local mask=$(echo "${ip_full}" | sed -En "s/^[^0-9/]*([0-9.]*)(\/([0-9]*)|[^/]?).*$/\3/p")
     # Проверить что это ip
-    # is_ipv4=$(check_ipv4 "${ip}")
+    # is_ipv4=$(check_ipv4_addr "${ip}")
     # if [ "${is_ipv4}" -eq "0" ]; then
     #     ip="${DEF_SERVER_WG_IPV4}"
     # fi
-    if ! check_ipv4 "${ip}" > /dev/null; then
-        ip="${DEF_SERVER_WG_IPV4}"
+    if ! check_ipv4_addr "${ip}" > /dev/null; then
+        if [ "${flag_use_def}" = "1" ]; then
+            local ip="${2}"
+        else
+            local ip=""
+        fi
     fi
-    is_ipv4_mask=$(check_ipv4_mask "${mask}")
-    if [ "${is_ipv4_mask}" = "0" ]; then
-        mask="${DEF_SERVER_WG_IPV4_MASK}"
+    # is_ipv4_mask=$(check_ipv4_mask "${mask}")
+    # if [ "${is_ipv4_mask}" = "0" ]; then
+    if ! check_ipv4_mask "${mask}"; then
+        if [ "${flag_use_def}" = "1" ]; then
+            mask="${3}"
+        else
+            mask=""
+        fi
     fi
     # debug "ip=${ip} mask=${mask}"
     # debug "get_ip_mask_4 END ================================="
     printf "%s" "ip=${ip} mask=${mask}"
 }
 
+# Распарсить строку IPv6 в адрес и маску
+# $1 - ipv6/mask
+# $2 - ip адрес по-умолчанию
+# $3 - маска по-умолчанию
+# $4 - флаг что для возврата, если в ${1} ошибочные адрес или маска, то будут подставляться или "${2}" или "${3}"
+#      если он присутствует и не равен 0, то будут подстановки
+#      если он отсутствует или   равен 0, то подстановок не будет и вместо ошибочного элемента будет возвращаться "" (пустая строка)
+# Возвращает строку в формате 'ip=[addr_ipv6] mask=[mask_ipv6]'
 get_ip_mask_6() {
-    ip_full=$1
-    # debug "get_ip_mask_6 BEGIN ================================"
-    # debug "ARGS: ${ip_full}"
+    local ip_full=$1
+    local args="$@"
+    debug "get_ip_mask_6 BEGIN ================================"
+    debug "ARGS: ${args}"
     local si6='0-9a-fA-F:'
+    if [ -z "$4" ] || [ "$4" = "0" ]; then
+        local flag_use_def=0
+    else
+        local flag_use_def=1
+    fi
     # разделить на ip адрес и маску (ipv4/mask)
-    ip=$(echo "${ip_full}"   | sed -En "s/^[^${si6}/]*([${si6}]*)(\/([0-9]*)|[^/]?).*$/\1/p")
-    mask=$(echo "${ip_full}" | sed -En "s/^[^${si6}/]*([${si6}]*)(\/([0-9]*)|[^/]?).*$/\3/p")
-    local is_ipv6=$(check_ipv6 "${ip}")
-    if [ "${is_ipv6}" -eq "0" ]; then
-        ip="${DEF_SERVER_WG_IPV6}"
+    local ip=$(echo "${ip_full}"   | sed -En "s/^[^${si6}/]*([${si6}]*)(\/([0-9]*)|[^/]?).*$/\1/p")
+    local mask=$(echo "${ip_full}" | sed -En "s/^[^${si6}/]*([${si6}]*)(\/([0-9]*)|[^/]?).*$/\3/p")
+    # local is_ipv6="$(check_ipv6_addr "${ip}")"
+    if ! check_ipv6_addr "${ip}" > /dev/null; then
+        if [ "${flag_use_def}" = "1" ]; then
+            # local ip="${DEF_SERVER_WG_IPV6}"
+            local ip="${2}"
+        else
+            local ip=""
+        fi
     fi
-    local is_ipv6_mask=$(check_ipv6_mask "${mask}")
-    if [ "${is_ipv6_mask}" = "0" ]; then
-        mask="${DEF_SERVER_WG_IPV6_MASK}"
+    # local is_ipv6_mask=$(check_ipv6_mask "${mask}")
+    # if [ "${is_ipv6_mask}" = "0" ]; then
+    if ! check_ipv6_mask "${mask}"; then
+        if [ "${flag_use_def}" = "1" ]; then
+            # local mask="${DEF_SERVER_WG_IPV6_MASK}"
+            local mask="${3}"
+        else
+            local mask=""
+        fi
     fi
-    # debug "ip=${ip} mask=${mask}"
-    # debug "get_ip_mask_6 END =================================="
+    debug "ip=${ip} mask=${mask}"
+    debug "get_ip_mask_6 END =================================="
     printf "%s" "ip=${ip} mask=${mask}"
+}
+
+# Проверить валидность адреса и маски ipv4. Адрес должен быть в формате <addIPv4>/<maskIPv4>
+# Подстановок адреса и маски по-умолчанию нет.
+check_ip_addr_mask_4() {
+    local res="$(get_ip_mask_4 "$1")"
+    # res - строка 'ip=addrIPv4 mask=maskIPv4'
+    local addr="$(echo "${res}" | sed -En 's/^.*ip\s*=\s*([0-9.]+).*$/\1/p')"
+    local mask="$(echo "${res}" | sed -En 's/^.*mask\s*=\s*([0-9]+).*$/\1/p')"
+    debug "check_ip_addr_mask_4 addr: ${addr}"
+    debug "check_ip_addr_mask_4 mask: ${mask}"
+    # проверить на валидность адрес и маску
+    if check_ipv4_addr "${addr}" > /dev/null && check_ipv4_mask "${mask}" > /dev/null; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Проверить валидность адреса и маски ipv6. Адрес должен быть в формате <addIPv6>/<maskIPv6>
+# Подстановок адреса и маски по-умолчанию нет.
+check_ip_addr_mask_6() {
+    local res="$(get_ip_mask_6 "$1")"
+    # res - строка 'ip=addrIPv6 mask=maskIPv6'
+    local addr="$(echo "${res}" | sed -En 's/^.*ip\s*=\s*([0-9a-fA-F:]+).*$/\1/p')"
+    local mask="$(echo "${res}" | sed -En 's/^.*mask\s*=\s*([0-9]+).*$/\1/p')"
+    debug "check_ip_addr_mask_6 addr: ${addr}"
+    debug "check_ip_addr_mask_6 mask: ${mask}"
+    # проверить на валидность адрес и маску
+    if check_ipv6_addr "${addr}" > /dev/null && check_ipv6_mask "${mask}" > /dev/null; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Проверить валидность ip-адреса ipv4 и вернуть его.
+# Параметры как и в get_ip_mask_4
+# Возвращает ip адрес v4:
+#   код возврата =0 и строку 'addr_ipv4', если адрес валидный
+#   код возврата =1 и строку (пустую) '', если адрес НЕ валидный
+check_get_ip_addr_4() {
+    local res="$(get_ip_mask_4 $@)"
+    # res - строка 'ip=addrIPv4 mask=maskIPv4'
+    local addr="$(echo "${res}" | sed -En 's/^.*ip\s*=\s*([0-9.]+).*$/\1/p')"
+    # проверить на валидность адрес
+    if check_ipv4_addr "${addr}" > /dev/null; then
+        printf "${addr}"
+        return 0
+    else
+        printf ""
+        return 1
+    fi
+}
+
+# Проверить валидность ip-адреса ipv6 и вернуть его.
+# Параметры как и в get_ip_mask_6
+# Возвращает ip адрес v6:
+#   код возврата =0 и строку 'addr_ipv6', если адрес валидный
+#   код возврата =1 и строку (пустую) '', если адрес НЕ валидный
+check_get_ip_addr_6() {
+    local res="$(get_ip_mask_6 $@)"
+    # res - строка 'ip=addrIPv6 mask=maskIPv6'
+    local addr="$(echo "${res}" | sed -En 's/^.*ip\s*=\s*([0-9a-fA-F:]+).*$/\1/p')"
+    debug "check_get_ip_addr_6 addr: ${addr}"
+    # проверить на валидность адрес
+    if check_ipv6_addr "${addr}" > /dev/null; then
+        printf "${addr}"
+        return 0
+    else
+        printf ""
+        return 1
+    fi
+}
+
+# Проверить валидность маски ipv4 и вернуть ее.
+# Параметры как и в get_ip_mask_4
+# Возвращает маску v4:
+#   код возврата =0 и строку 'mask' (число 0..32), если маска валидная
+#   код возврата =1 и строку (пустую) '', если маска НЕ валидная
+check_get_ip_mask_4() {
+    local res="$(get_ip_mask_4 $@)"
+    # res - строка 'ip=addrIPv6 mask=maskIPv6'
+    local mask="$(echo "${res}" | sed -En 's/^.*mask\s*=\s*([0-9]+).*$/\1/p')"
+    debug "check_get_ip_mask_4 mask: ${mask}"
+    # проверить на валидность маску
+    if check_ipv4_mask "${mask}" > /dev/null; then
+        printf "${mask}"
+        return 0
+    else
+        printf ""
+        return 1
+    fi
+}
+
+# Проверить валидность маски ipv6 и вернуть ее.
+# Параметры как и в get_ip_mask_6
+# Возвращает маску v6:
+#   код возврата =0 и строку 'mask' (число 0..128), если маска валидная
+#   код возврата =1 и строку (пустую) '', если маска НЕ валидная
+check_get_ip_mask_6() {
+    local res="$(get_ip_mask_6 $@)"
+    # res - строка 'ip=addrIPv6 mask=maskIPv6'
+    local mask="$(echo "${res}" | sed -En 's/^.*mask\s*=\s*([0-9]+).*$/\1/p')"
+    debug "check_get_ip_mask_6 mask: ${mask}"
+    # проверить на валидность маску
+    if check_ipv6_mask "${mask}" > /dev/null; then
+        printf "${mask}"
+        return 0
+    else
+        printf ""
+        return 1
+    fi
 }
 
 wg_prepare_file_config() {
@@ -564,14 +808,10 @@ wg_prepare_file_config() {
     echo "INST_SERVER_PUB_IP=${INST_SERVER_PUB_IP}" >> "${file_config}"
     # WIREGUARD interface NIC
     echo "INST_SERVER_WG_NIC=${DEF_SERVER_WG_NIC}" >> "${file_config}"
-    # WIREGUARD SERVER IPv4
+    # WIREGUARD SERVER IPv4/MASK
     echo "INST_SERVER_WG_IPV4=${DEF_SERVER_WG_IPV4}/${DEF_SERVER_WG_IPV4_MASK}" >> "${file_config}"
-    # WIREGUARD SERVER IPv4 MASK
-    # echo "INST_SERVER_WG_IPV4_MASK=${DEF_SERVER_WG_IPV4_MASK}" >> "${file_config}"
-    # WIREGUARD SERVER IPv6
+    # WIREGUARD SERVER IPv6/MASK
     echo "INST_SERVER_WG_IPV6=${DEF_SERVER_WG_IPV6}/${DEF_SERVER_WG_IPV6_MASK}" >> "${file_config}"
-    # WIREGUARD SERVER IPv6 MASK
-    # echo "INST_SERVER_WG_IPV6_MASK=${DEF_SERVER_WG_IPV6_MASK}" >> "${file_config}"
     # WIREGUARD SERVER PORT
 	RANDOM_PORT=$(shuf -i49152-65535 -n1)
     echo "INST_SERVER_PORT=${RANDOM_PORT}" >> "${file_config}"
@@ -643,8 +883,6 @@ inst_iptables(){
             #sed -i -E "/^#\!\/bin\/.*$/a\. ${file_params}" "${script_rules}"
             sed -i -E "1aif [ -f \"${_fp}\" \]\;  then \. \"${_fp}\"\;  fi" "${script_rules}"
             sed -i -E "2aif [ -f \"${_fhp}\" \]\; then \. \"${_fhp}\"\; fi" "${script_rules}"
-            # echo "PostUp=if which resolvectl > /dev/null; then resolvectl dns ${SERVER_WG_NIC} 192.168.15.3; fi" >> "${FILE_CONF_WG}"
-            # echo "PostUp=if which resolvectl > /dev/null; then resolvectl domain ${SERVER_WG_NIC} home.lan klinika.lan; fi" >> "${FILE_CONF_WG}"
             echo "PostUp=${script_rules} add" >> "${FILE_CONF_WG}"
             echo "PostDown=${script_rules} delete" >> "${FILE_CONF_WG}"
             # sed -i -r "s/^\s*(server_port\s*=\s*)[^ \t\n\r]+?(.*)$/\1${SERVER_PORT}\2/g" "${script_rules}"
@@ -714,7 +952,7 @@ wg_install() {
     fi
     if [ -z "${INST_SERVER_PUB_IP}" ] ||
         (
-            [ "$(check_ipv4 ${INST_SERVER_PUB_IP})" -eq "0" ] && [ "$(check_ipv6 ${INST_SERVER_PUB_IP})" -eq "0" ]
+            ! (check_get_ip_addr_4 "${INST_SERVER_PUB_IP}" > /dev/null || check_get_ip_addr_6 "${INST_SERVER_PUB_IP}" > /dev/null)
         )
     then
         err "В файле ${file_config} или при вводе указан не верный внешний IP адрес ${INST_SERVER_PUB_IP}";
@@ -727,24 +965,44 @@ wg_install() {
     if [ -z "${INST_SERVER_WG_NIC}" ]; then
         INST_SERVER_WG_NIC="${DEF_SERVER_WG_NIC}"
     fi
-    # IPv4 и маска интерфейса сервера
-    if [ -z "${INST_SERVER_WG_IPV4}" ]; then
-        INST_SERVER_WG_IPV4=$(_question "ОБЯЗАТЕЛЬНО! IPv4 адрес интерфейса сервера wireguard" "${DEF_SERVER_WG_IPV4}/${DEF_SERVER_WG_IPV4_MASK}" "1")
+    # IPv4 и маска интерфейса сервера WIREGUARD
+    local _IP_="${INST_SERVER_WG_IPV4}"
+    if [ -n "${ipv4}" ]; then
+        local _IP_="${ipv4}"
     fi
-    local ipv4_mask=$(get_ip_mask_4 "${INST_SERVER_WG_IPV4}")
+    if [ -z "${_IP_}" ]; then
+        local _IP_=$(_question "ОБЯЗАТЕЛЬНО! IPv4 адрес интерфейса сервера wireguard" "${DEF_SERVER_WG_IPV4}/${DEF_SERVER_WG_IPV4_MASK}" "1")
+    fi
+    INST_SERVER_WG_IPV4="${_IP_}"
+    local ipv4_mask=$(get_ip_mask_4 "${INST_SERVER_WG_IPV4}" "${DEF_SERVER_WG_IPV4}" "${DEF_SERVER_WG_IPV4_MASK}" "1")
     local is_digit=$(echo "${ipv4_mask}" | sed -En '/^.*[0-9./].*$/p')
+    # if [ -z "${INST_SERVER_WG_IPV4}" ]; then
+    #     INST_SERVER_WG_IPV4=$(_question "ОБЯЗАТЕЛЬНО! IPv4 адрес интерфейса сервера wireguard" "${DEF_SERVER_WG_IPV4}/${DEF_SERVER_WG_IPV4_MASK}" "1")
+    # fi
+    # local ipv4_mask=$(get_ip_mask_4 "${INST_SERVER_WG_IPV4}" "${DEF_SERVER_WG_IPV4}" "${DEF_SERVER_WG_IPV4_MASK}" "1")
+    # local is_digit=$(echo "${ipv4_mask}" | sed -En '/^.*[0-9./].*$/p')
     if [ -n "${ipv4_mask}" ] && [ -n "${is_digit}" ]; then
         # есть IPv4
         INST_SERVER_WG_IPV4=$(echo "${ipv4_mask}" | sed -En 's/^.*ip\s*=\s*([0-9.]+).*$/\1/p')
         INST_SERVER_WG_IPV4_MASK=$(echo "${ipv4_mask}" | sed -En 's/^.*mask\s*=\s*([0-9]+).*$/\1/p')
     fi
-    # IPv6 и маска интерфейса сервера
-    if [ "${use_ipv6}" -ne "0" ]; then
-        if [ -z "${INST_SERVER_WG_IPV6}" ]; then
-            INST_SERVER_WG_IPV6=$(_question "ОБЯЗАТЕЛЬНО! IPv6 адреса интерфейса сервера wireguard" "${DEF_SERVER_WG_IPV6}/${DEF_SERVER_WG_IPV6_MASK}" "1")
+    # IPv6 и маска интерфейса сервера WIREGUARD
+    if [ "${use_ipv6}" != "0" ]; then
+        local _IP_="${INST_SERVER_WG_IPV6}"
+        if [ -n "${ipv6}" ]; then
+            local _IP_="${ipv6}"
         fi
-        local ipv6_mask=$(get_ip_mask_6 "${INST_SERVER_WG_IPV6}")
+        if [ -z "${_IP_}" ]; then
+            local _IP_=$(_question "ОБЯЗАТЕЛЬНО! IPv6 адреса интерфейса сервера wireguard" "${DEF_SERVER_WG_IPV6}/${DEF_SERVER_WG_IPV6_MASK}" "1")
+        fi
+        INST_SERVER_WG_IPV6="${_IP_}"
+        local ipv6_mask=$(get_ip_mask_6 "${INST_SERVER_WG_IPV6}" "${DEF_SERVER_WG_IPV6}" "${DEF_SERVER_WG_IPV6_MASK}" "1")
         local is_digit=$(echo "${ipv6_mask}" | sed -En '/^.*[0-9a-fA-F:].*$/p')
+        # if [ -z "${INST_SERVER_WG_IPV6}" ]; then
+        #     INST_SERVER_WG_IPV6=$(_question "ОБЯЗАТЕЛЬНО! IPv6 адреса интерфейса сервера wireguard" "${DEF_SERVER_WG_IPV6}/${DEF_SERVER_WG_IPV6_MASK}" "1")
+        # fi
+        # local ipv6_mask=$(get_ip_mask_6 "${INST_SERVER_WG_IPV6}")
+        # local is_digit=$(echo "${ipv6_mask}" | sed -En '/^.*[0-9a-fA-F:].*$/p')
         if [ -n "${ipv6_mask}" ] && [ -n "${is_digit}" ]; then
             # есть ipv6
             INST_SERVER_WG_IPV6="$(echo "${ipv6_mask}" | sed -En 's/^.*ip\s*=\s*([0-9a-fA-F:]+).*$/\1/p')"
@@ -893,13 +1151,21 @@ wg_install() {
     debug "ALLOWED_IPS: ${ALLOWED_IPS}"
 
 	# Настройка sysctl Включить форвардинг на сервере
-    if [ -z "${dry_run}" ] || [ "${dry_run}" -eq "0" ]; then
-        echo "net.ipv4.ip_forward = 1" > "${file_sysctl}"
-        echo "net.ipv6.conf.all.forwarding = 1" >> "${file_sysctl}"
-    else
-        exec_cmd echo "net.ipv4.ip_forward = 1 > ${file_sysctl}"
-        exec_cmd echo "net.ipv6.conf.all.forwarding = 1 >> ${file_sysctl}"
+    local c1="$(exec_cmd echo "net.ipv4.ip_forward = 1")"
+    local c2="$(exec_cmd echo "net.ipv6.conf.all.forwarding = 1")"
+    if [ -n "${c1}" ] && ([ -z "${dry_run}" ] || [ "${dry_run}" = "0" ]); then
+        echo "${c1}" > "${file_sysctl}"
     fi
+    if [ -n "${c2}" ] && ([ -z "${dry_run}" ] || [ "${dry_run}" = "0" ]); then
+        echo "${c2}" > "${file_sysctl}"
+    fi
+    # if [ -z "${dry_run}" ] || [ "${dry_run}" -eq "0" ]; then
+    #     echo "net.ipv4.ip_forward = 1" > "${file_sysctl}"
+    #     echo "net.ipv6.conf.all.forwarding = 1" >> "${file_sysctl}"
+    # else
+    #     exec_cmd echo "net.ipv4.ip_forward = 1 > ${file_sysctl}"
+    #     exec_cmd echo "net.ipv6.conf.all.forwarding = 1 >> ${file_sysctl}"
+    # fi
 	# Файл конфигурации WIREGUARD
     # FILE_CONF_WG="${path_wg}/${SERVER_WG_NIC}.conf"
     # FILE_CONF_WG="$(_join_path "${path_wg}" "${SERVER_WG_NIC}.conf")"
@@ -953,6 +1219,17 @@ wg_install() {
     debug "wg_install END =============================================="
 }
 
+wg_uninstall() {
+    debug "wg_uninstall BEGIN ============================================"
+
+    debug "wg_uninstall END =============================================="
+}
+
+# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 main() {
     if [ -z "$1" ]; then
         # show_help
@@ -964,75 +1241,98 @@ main() {
         shift
     fi
     # Проверить на допустимость команды, она должна быть одной из списка ARR_CMD
-    # if [[ ! " ${ARR_CMD[@]} " =~ " ${cmd} " ]]; then
-    # if [[ ! " ${ARR_CMD} " =~ " ${cmd} " ]]; then
     local l_cmd=$(echo " ${ARR_CMD} " | sed -rn "s/.*( $cmd ).*/\1/p" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-    # debug "_${ARR_CMD}_"
-    # debug "_${l_cmd}_"
-    if [ -z " ${l_cmd}" ]; then
+    if [ -z "${l_cmd}" ]; then
         err "Неверная команда: ${cmd}"
         show_help
         exit 1
     fi
     while [ ${#} -gt 0 ]; do
         case "${1}" in
-        -c | --config)
-            file_config="$(_trim "$2")"
-            shift
-            ;;
-        -p | --params)
-            local _a_file_params="$(_trim "$2")"
-            shift
-            ;;
-        -o | --out-path)
-            local _a_path_out="$(_trim "$2")"
-            shift
-            ;;
-        -w | --wg-path)
-            local _a_path_wg="$(_trim "$2")"
-            shift
-            ;;
-        --debug)
-            local _a_is_debug='1'
-            ;;
-        -h | --help)
-            show_help
-            exit 0
-            ;;
-        -6 | --use-ipv6)
-            # TODO пока не реализовано, поэтому use_ipv6 = 0. Не реализовано из-за iptables6
-            local _a_use_ipv6='0'
-            local _a_use_ipv6='1'
-            ;;
-        --dry-run)
-            local _a_dry_run='1'
-            ;;
-        -r | --rules-iptables)
-            local _a_file_rules_firewall="$(_trim "$2")"
-            shift
-            ;;
-        -d | --hand-params)
-            local _a_file_hand_params="${2}"
-            shift
-            ;;
-        -f | --file-args)
-            # путь к файлу где хранятся аргументы для командной строки"
-            file_args="${2}"
-            is_file_args=is_file_args
-            shift
-            ;;
-        -u | --update-args)
-            # флаг, что надо обновить файл с аргументами соответственно текущим аргументам командной строки
-            is_update_file_args=1
-            ;;
-        *)
-            err "Неверный параметр: ${1}"
-            return 1
-            ;;
+            -c | --config)
+                file_config="$(_trim "$2")"
+                shift
+                ;;
+            -p | --params)
+                local _a_file_params="$(_trim "$2")"
+                shift
+                ;;
+            -o | --out-path)
+                local _a_path_out="$(_trim "$2")"
+                shift
+                ;;
+            -w | --wg-path)
+                local _a_path_wg="$(_trim "$2")"
+                shift
+                ;;
+            --debug)
+                local _a_is_debug='1'
+                ;;
+            -h | --help)
+                show_help
+                exit 0
+                ;;
+            -6 | --use-ipv6)
+                # TODO пока не реализовано, поэтому use_ipv6 = 0. Не реализовано из-за iptables6
+                local _a_use_ipv6='0'
+                local _a_use_ipv6='1'
+                ;;
+            --dry-run)
+                local _a_dry_run='1'
+                ;;
+            -r | --rules-iptables)
+                local _a_file_rules_firewall="$(_trim "$2")"
+                shift
+                ;;
+            -d | --hand-params)
+                local _a_file_hand_params="${2}"
+                shift
+                ;;
+            -f | --file-args)
+                # путь к файлу где хранятся аргументы для командной строки"
+                file_args="${2}"
+                is_file_args=is_file_args
+                shift
+                ;;
+            -u | --update-args)
+                # флаг, что надо обновить файл с аргументами соответственно текущим аргументам командной строки
+                is_update_file_args=1
+                ;;
+            -a | --action)
+                action="$2"
+                shift
+                ;;
+            --ip4)
+                # <address/mask>
+                ipv4="$2"
+                shift
+                ;;
+            --ip6)
+                # <address/mask>
+                ipv6="$2"
+                shift
+                ;;
+            -e | --allowed_ips)
+                # <address/mask>
+                client_allowed_ips="$2"
+                shift
+                ;;
+            -n | --name)
+                # <address/mask>
+                client_name="$2"
+                shift
+                ;;
+            *)
+                err "Неверный параметр: ${1}"
+                return 1
+                ;;
         esac
-
         shift 1
     done
+    # Установить пакеты, требующиеся для работы скрипта, отладочных сообщений нет совсем
+    # установятся они до инициализации аргументов
+    # check_os 2 > /dev/null
+
     is_update_file_args="${is_update_file_args:=0}"
     file_config="$(_add_current_dot "${file_config:="$VARS_FOR_INSTALL"}")"
     file_args="$(realpath -m "$(_join_path "${_a_path_wg}" "$(_add_current_dot "${file_args:=${def_file_args}}")")")"
@@ -1068,6 +1368,15 @@ main() {
     set_var path_out "${path_out}" "${_a_path_out}"
     set_var file_rules_firewall "${file_rules_firewall}" "${_a_file_rules_firewall}"
     set_var use_ipv6 "${use_ipv6}" "${_a_use_ipv6}"
+    if [ -z "${use_ipv6}" ]; then
+        use_ipv6=0
+    fi
+    if [ -z "${is_debug}" ]; then
+        is_debug=0
+    fi
+    if [ -z "${dry_run}" ]; then
+        dry_run=0
+    fi
     # if [ -z "${is_file_args}" ] || [ ! -f "${file_args}" ]; then
     if [ -n "${is_update_file_args}" ] && [ "${is_update_file_args}" != "0" ]; then
         # file_args="$(_add_current_dot "${file_args:=${def_file_args}}")"
@@ -1080,6 +1389,15 @@ main() {
         echo "file_hand_params=${file_hand_params}" >> "${file_args}"
         echo "path_out=${path_out}" >> "${file_args}"
         echo "file_rules_firewall=${file_rules_firewall}" >> "${file_args}"
+    fi
+    # аргументы, которые не сохраняются, не имеют значений по-умолчанию и не настраиваются предварительно
+    if [ "${cmd}" = "client" ]; then
+        local l_act=$(echo " ${ACTION_CLIENT} " | sed -rn "s/.*( $action ).*/\1/p" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        if [ -z "${l_act}" ]; then
+            err "Неверный аргумент --action ( or -a ) ${action}"
+            show_help
+            exit 1
+        fi
     fi
 
     debug "main BEGIN"
@@ -1095,9 +1413,11 @@ main() {
     debug "use_ipv6____________: ${use_ipv6}"
     debug "dry_run_____________: ${dry_run}"
     debug "file_args___________: ${file_args}"
-    
-    #
-    debug "pwd: $(pwd)"
+    debug "action______________: ${action}"
+    debug "ipv4________________: ${ipv4}"
+    debug "ipv6________________: ${ipv6}"
+    debug "client_allowed_ips__: ${client_allowed_ips}"
+    debug "client_name_________: ${client_name}"
     # создать каталоги
     local path_file_params="$(dirname ${file_params})"
     debug "Создаем каталоги: ${path_wg} ; ${path_out} ; ${path_file_params}"
@@ -1120,14 +1440,38 @@ main() {
         "install")
             # Проверить что из под root и в противном случае прервать выполнение
             check_root
-            # Проверить что выполняется в поддерживаемой OS и в противном случае прервать выполнение
-            check_os
+            # Проверить что выполняется в поддерживаемой OS, в противном случае прервать выполнение
+            local os_data="$(check_os)"
+            if [ "$?" -ne "0" ]; then
+                exit 1
+            fi
             # Проверить что выполняется в поддерживаемой системе виртуализации и в противном случае прервать выполнение
             check_virt
             wg_install
             ;;
-        "new")
-            debug "New client"
+        "uninstall")
+            # удалить установленные пакеты и все созданные каталоги и файлы
+            wg_uninstall
+            ;;
+        "client")
+            debug "Client"
+
+
+# msg "            -a, --action <action>          - указывает что делать: создать клиента, удалить клиента или получить список клиентов"
+# msg "                                             значение должно быть из ACTION_CLIENT (add, del, list)"
+# msg "                          a | add | new   :  создать файлы настроек для клиента на сервере и клиенте, файл QRcode для клиента"
+# msg "                          d | del | delete:  удалить клиента из файла настроек сервера"
+# msg "                          l | list        :  получить список клиентов из файла настроек сервера"
+# msg "            -p, --params <filename>        - созданный при install файл с уточненными данными используется для создания файлов клиента"
+# msg "            -d, --hand-params <filename>   - файл созданный вручную для определения дополнительных переменных для настройки клиентов"
+# msg "                --ip4 <address/mask>       - ipv4 адрес с маской клиента"
+# msg "                --ip6 <address/mask>       - ipv6 адрес с маской клиента"
+# msg "            -e, --allowed-ips <network>    - список ip адресов, которым разрешен доступ в формате 1.1.1.0/24,fdoo::0/64,2.2.2.2/32"
+# msg "                                             по-умолчанию только адрес клиента"
+# msg "            -n, --name <name client>       - имя клиента"
+
+
+
             ;;
         "prepare")
             wg_prepare_file_config
@@ -1141,29 +1485,7 @@ main() {
     debug "main END"
 }
 
+
 main $@
 
-
-    # if [ -n "${_a_is_debug}" ]; then
-    #     is_debug=${_a_is_debug}
-    # fi
-    # if [ -n "${_a_dry_run}" ]; then
-    #     dry_run=${_a_dry_run}
-    # fi
-    # if [ -n "${_a_path_wg}" ]; then
-    #     path_wg="${_a_path_wg}"
-    # fi
-    # if [ -n "${_a_file_params}" ]; then
-    #     file_params="$(realpath -m "$(_add_current_dot "${_a_file_params}")")"
-    # fi
-    # #file_params="$(_add_current_dot "${file_params:="$VARS_PARAMS"}")"
-    # if [ -n "${_a_file_hand_params}" ]; then
-    #     file_hand_params="$(_add_current_dot "${_a_file_hand_params}")"
-    # fi
-    # local temp_path="$(_join_path "${path_wg}" ".clients")"
-    # if [ -n "${_a_path_out}" ]; then
-    #     path_out="$(realpath -m "$(_add_current_dot "${_a_path_out:=${temp_path}}")")"
-    # fi
-    # if [ -n "${_a_file_rules_firewall}" ]; then
-    #     file_rules_firewall="$(_add_current_dot "${_a_file_rules_firewall:=./iptables/default-iptables.rules}")"
-    # fi
+exit
