@@ -1329,7 +1329,9 @@ main() {
     done
     # Установить пакеты, требующиеся для работы скрипта, отладочных сообщений нет совсем
     # установятся они до инициализации аргументов
+    printf "Установка пакетов, если требуется...\n"
     check_os 2 > /dev/null
+    printf "Установка пакетов закончилась\n"
 
     is_update_file_args="${is_update_file_args:=0}"
     file_config="$(_add_current_dot "${file_config:="$VARS_FOR_INSTALL"}")"
