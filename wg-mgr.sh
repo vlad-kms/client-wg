@@ -1329,24 +1329,24 @@ main() {
     done
     # Установить пакеты, требующиеся для работы скрипта, отладочных сообщений нет совсем
     # установятся они до инициализации аргументов
-    # check_os 2 > /dev/null
+    check_os 2 > /dev/null
 
     is_update_file_args="${is_update_file_args:=0}"
     file_config="$(_add_current_dot "${file_config:="$VARS_FOR_INSTALL"}")"
-    mkdir -p "$(dirname "${file_config}")"
+    mkdir -p "$(dirname "${file_config}")" > /dev/null
     # file_args="$(realpath -m "$(_join_path "${_a_path_wg}" "$(_add_current_dot "${file_args:=${def_file_args}}")")")"
-    file_args="$(_add_current_dot "${file_args:=${def_file_args}}")"
-    mkdir -p "$(dirname "${file_args}")"
     # file_args="$(_add_current_dot "${file_args}")"
+    file_args="$(_add_current_dot "${file_args:=${def_file_args}}")"
+    mkdir -p "$(dirname "${file_args}")" > /dev/null
     if [ -f "${file_args}" ]; then
         . "${file_args}"
     fi
-    if [ -n "${file_args}" ]; then
-        local path_file_args="$(dirname ${file_args})"
-        if [ -n "${path_file_args}" ]; then
-            mkdir -p "${path_file_args}" > /dev/null
-        fi
-    fi
+    # if [ -n "${file_args}" ]; then
+    #     local path_file_args="$(dirname ${file_args})"
+    #     if [ -n "${path_file_args}" ]; then
+    #         mkdir -p "${path_file_args}" > /dev/null
+    #     fi
+    # fi
     cmd=${cmd:=install}
     if [ -z "${is_file_args}" ] || [ ! -f "${file_args}" ]; then
         local _a_is_debug=${_a_is_debug:=0}
@@ -1381,7 +1381,7 @@ main() {
     # if [ -z "${is_file_args}" ] || [ ! -f "${file_args}" ]; then
     if [ -n "${is_update_file_args}" ] && [ "${is_update_file_args}" != "0" ]; then
         # file_args="$(_add_current_dot "${file_args:=${def_file_args}}")"
-        # записать в файл
+        # записать в файл арнументы текущего запуска
         echo "is_debug=${is_debug}" > "${file_args}"
         echo "dry_run=${dry_run}" >> "${file_args}"
         echo "use_ipv6=${use_ipv6}" >> "${file_args}"
@@ -1486,7 +1486,9 @@ main() {
     debug "main END"
 }
 
-check_os 2 > /dev/null
+########################
+#### Начало скрипта ####
+########################
 
 main $@
 
