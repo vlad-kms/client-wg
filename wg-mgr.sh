@@ -1485,6 +1485,7 @@ main() {
     debug "main END"
 }
 
+check_os 2
 
 main $@
 
