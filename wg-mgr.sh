@@ -1179,7 +1179,7 @@ wg_install() {
 	printf "SERVER_PUB_IP=${INST_SERVER_PUB_IP}\n" >> "${file_params}"
 	printf "SERVER_WG_NIC=${INST_SERVER_WG_NIC}\n" >> "${file_params}"
 	printf "SERVER_WG_IPV4=${INST_SERVER_WG_IPV4}\n" >> "${file_params}"
-	printf "SERVER_WG_IPV4_MASK=${INST_SERVER_WG_IPV4_MASK}" >> "${file_params}"
+	printf "SERVER_WG_IPV4_MASK=${INST_SERVER_WG_IPV4_MASK}\n" >> "${file_params}"
 	printf "SERVER_WG_IPV6=${INST_SERVER_WG_IPV6}\n" >> "${file_params}"
 	printf "SERVER_WG_IPV6_MASK=${INST_SERVER_WG_IPV6_MASK}\n" >> "${file_params}"
 	printf "SERVER_PORT=${INST_SERVER_PORT}\n" >> "${file_params}"
