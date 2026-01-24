@@ -179,7 +179,7 @@ install_packages() {
         VERSION_ID="$(get_item_str "${os_data}" 'version')"
     fi
     debug "${os_data}"
-    if [ "${ID}" = 'debian' ] || ["${OS}" = 'ubuntu' ] ; then
+    if [ "${ID}" = 'debian' ] || [ "${OS}" = 'ubuntu' ] ; then
         exec_cmd apt-get update
         local _cmd_="apt-get install -y $@"
     elif [ "${ID}" = 'alpine' ]; then
@@ -337,7 +337,7 @@ get_item_str() {
 
 init_os() {
     local _os_="$(get_item_str "$(check_os 2)" "id")"
-    if [ "${_os_}" == "alpine" ]; then
+    if [ "${_os_}" = "alpine" ]; then
 		# OS=alpine
         # установить требуемые пакеты
         # проверить что установлен coreutils, и если нет, то добавть в список устанавливаемых пакетов
