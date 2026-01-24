@@ -27,7 +27,7 @@ DEF_CLIENT_DNS_2=1.0.0.1
 DEF_ALLOWED_IPS=0.0.0.0/0,::/0
 
 is_debug=0
-allow_lxc=1
+allow_lxc=0
 
 # path_wg=/etc/wireguard
 # path_wg=.
@@ -40,7 +40,7 @@ oi6='[0-9a-fA-F]{1,4}'
 ai4='((1?[0-9][0-9]?|2[0-4][0-9]|25[0-5])\.){3}(1?[0-9][0-9]?|2[0-4][0-9]|25[0-5])'
 
 show_help() {
-    # -c -r -p -d -h -o -6 -w -f -u -a -l -n
+    # -c -r -p -d -h -o -6 -w -f -u -a -l -n -x
     msg "Использование:"
     msg "wg-mgr.sh [command] [options]"
     msg "command (одна из [ ${ARR_CMD} ], по-умолчанию install):"
@@ -83,6 +83,7 @@ show_help() {
     msg "    -w, --wg-path <path>       - путь к установленному Wireguard"
     msg "    -f, --file-args <path>     - путь к файлу где хранятся аргументы для командной строки"
     msg "    -u, --update-args          - флаг, что надо обновить файл с аргументами соответственно текущим аргументам командной строки"
+    msg "    -x, --allow-lxc            - флаг, что не блокировать установку WIREGUARD в контейнеры и VM LXD"
     msg " "
 }
 
@@ -1399,6 +1400,10 @@ main() {
                 # <address/mask>
                 client_name="$2"
                 shift
+                ;;
+            -x | --allow-lxc)
+                # флаг, что не блокировать установку WIREGUARD в контейнеры и VM LXD"
+                allow_lxc=1
                 ;;
             *)
                 err "Неверный параметр: ${1}"
