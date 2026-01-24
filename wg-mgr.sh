@@ -204,21 +204,27 @@ check_os() {
     elif [ "${OS}" == "alpine" ]; then
 		# OS=alpine
         # установить требуемые пакеты
-        # проверить что установлен coreutils
+        # проверить что установлен coreutils, и если нет, то добавть в список устанавливаемых пакетов
+        local list_packet='sed'
         if apk list --installed | grep coreutils > /dev/null; then
             local list_packet=''
         else
             local list_packet='coreutils'
         fi
-        # проверить что установлен virt-what
+        # проверить что установлен virt-what, и если нет, то добавть в список устанавливаемых пакетов
         if ! command -v virt-what >/dev/null; then
                 local list_packet="${list_packet} virt-what"
         fi
-        # if ! command -v virt-what >/dev/null; then
+        # проверить что установлен sed совместимый с GNU, и если нет, то добавть в список устанавливаемых пакетов
+        sed_vers="$(sed --version | grep 'not GNU')"
+        if [ -n "${sed_vers}" ]; then
+            local list_packet="${list_packet} sed"
+        fi
         if [  -n "${list_packet}" ]; then
+            apk update --progress-fd 2
             if [ "$is_debug" = "0" ]; then
                 # if ! (apk update --progress-fd 2 > /dev/null && apk add --progress-fd 2 ${list_packet} > /dev/null); then
-                if ! (apk update --progress-fd 2 && apk add --progress-fd 2 ${list_packet}); then
+                if ! (apk add --progress-fd 2 ${list_packet} > /dev/null); then
                     local _msg_="Невозможно установить пакеты ${list_packet}."
                     if [ "${is_out_err}" -eq "0" ]; then
                         err "${_msg_}"
@@ -228,7 +234,7 @@ check_os() {
                     local res_exit=1
                 fi
             else
-                if ! (apk update --progress-fd 2 && apk add --progress-fd 2 ${list_packet}); then
+                if ! (apk add --progress-fd 2 ${list_packet}); then
                     local _msg_="Невозможно установить пакеты ${list_packet}."
                     if [ "${is_out_err}" -eq "0" ]; then
                         err "${_msg_}"
