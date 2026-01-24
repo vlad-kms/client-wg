@@ -143,11 +143,94 @@ is_root() {
     fi
 }
 
+exec_cmd() {
+    if [ -z "${dry_run}" ] || [ "${dry_run}" -eq "0" ]; then
+        if [ "$is_debug" = "0" ]; then
+        	"$@" > /dev/null 2>&1
+        else
+        	"$@"
+        fi
+    else
+        local ttt="$@"
+        printf "${PURPLE}Выполнить команду: '${ttt}'${NC}\n" 1>&2
+	fi
+}
+
+exec_cmd_with_result() {
+    local res=''
+    if [ -z "${dry_run}" ] || [ "${dry_run}" -eq "0" ]; then
+        res=$("$@")
+    else
+        local ttt="$@"
+        printf "${PURPLE}Выполнить команду: '${ttt}'${NC}\n" 1>&2
+	fi
+    printf "${res}"
+}
+
+# 
+install_packages() {
+    debug "install_packages BEGIN ==================================="
+    # ttt="$@"
+    # if [ -z "${ID}" ] || [ -z "{VERSION_ID}" ]; then
+    if [ -z "${ID+x}" ] || [ -z "{VERSION_ID+x}" ]; then
+        # . "${OS_RELEASE}"
+        local os_data=$(check_os 2)
+        ID="$(get_item_str "${os_data}" 'os')"
+        VERSION_ID="$(get_item_str "${os_data}" 'version')"
+    fi
+    debug "${os_data}"
+    if [ "${ID}" = 'debian' ] || ["${OS}" = 'ubuntu' ] ; then
+        exec_cmd apt-get update
+        local _cmd_="apt-get install -y $@"
+    elif [ "${ID}" = 'alpine' ]; then
+        exec_cmd apk update
+        local _cmd_="apk add $@"
+    else
+        local _cmd_=''
+    fi
+    if [ -n "${_cmd_}" ]; then
+        debug "install_packages, выполняемая команда: ${_cmd_}"
+        if [ -z "${dry_run}" ] || [ "${dry_run}" -eq "0" ]; then
+            # if ! "$@"; then
+            if [ -z "${is_debug}" ] || [ "${is_debug}" -eq "0" ]; then
+                ${_cmd_} > /dev/null
+            else
+                ${_cmd_} >&2
+            fi
+            local _res_=$?
+            debug "_res_: $_res_"
+            if [ "${_res_}" -ne "0" ]; then
+                err "Ошибка установки пакетов: '${_cmd_}'"
+                err "Проверьте подключение к интернету и настройки пакетного менеджера."
+                exit 1
+            fi
+        else
+            printf "${PURPLE}Выполнить команду: '${_cmd_}'${NC}\n" 1>&2
+        fi
+    fi
+    debug "install_packages END --==================================="
+}
+
+# Проверить что первый символ в строке, заданной в 1-ом аргументе, это символ, который задан во 2-ом аргументе
+_startswith() {
+  _str="$1"
+  _sub="$2"
+  echo "$_str" | grep -- "^$_sub" >/dev/null 2>&1
+}
+
+# Проверить что последний символ в строке, заданной в 1-ом аргументе, это символ, который задан во 2-ом аргументе
+_endswith() {
+  _str="$1"
+  _sub="$2"
+  echo "$_str" | grep -- "$_sub\$" >/dev/null 2>&1
+}
+
 # проверить OS:
 #   debian >=10
 #   raspbian >=10
 #   ubuntu >=18.4
 #   alpine
+# Так же можно проинициализировать ОС под себя (см. например если ОС Alpine)
 # АРГУМЕНТЫ:
 # $1 - как выводить сообщения
 #   =0, то вывод красным цветом
@@ -205,46 +288,7 @@ check_os() {
 		# OS=alpine
         # установить требуемые пакеты
         # проверить что установлен coreutils, и если нет, то добавть в список устанавливаемых пакетов
-        local list_packet='sed'
-        if apk list --installed | grep coreutils > /dev/null; then
-            local list_packet=''
-        else
-            local list_packet='coreutils'
-        fi
-        # проверить что установлен virt-what, и если нет, то добавть в список устанавливаемых пакетов
-        if ! command -v virt-what >/dev/null; then
-                local list_packet="${list_packet} virt-what"
-        fi
-        # проверить что установлен sed совместимый с GNU, и если нет, то добавть в список устанавливаемых пакетов
-        sed_vers="$(sed --version | grep 'not GNU')"
-        if [ -n "${sed_vers}" ]; then
-            local list_packet="${list_packet} sed"
-        fi
-        if [  -n "${list_packet}" ]; then
-            apk update --progress-fd 2
-            if [ "$is_debug" = "0" ]; then
-                # if ! (apk update --progress-fd 2 > /dev/null && apk add --progress-fd 2 ${list_packet} > /dev/null); then
-                if ! (apk add --progress-fd 2 ${list_packet} > /dev/null); then
-                    local _msg_="Невозможно установить пакеты ${list_packet}."
-                    if [ "${is_out_err}" -eq "0" ]; then
-                        err "${_msg_}"
-                    elif [ "${is_out_err}" -eq "1" ]; then
-                        msg "${_msg_}"
-                    fi
-                    local res_exit=1
-                fi
-            else
-                if ! (apk add --progress-fd 2 ${list_packet}); then
-                    local _msg_="Невозможно установить пакеты ${list_packet}."
-                    if [ "${is_out_err}" -eq "0" ]; then
-                        err "${_msg_}"
-                    elif [ "${is_out_err}" -eq "1" ]; then
-                        msg "${_msg_}"
-                    fi
-                    local res_exit=1
-                fi
-            fi
-		fi
+        debug "OS: alpine"
 	else
 		local _msg_="Этот установщик на данный момент поддерживает только Debian, Ubuntu и Alpine"
         if [ "${is_out_err}" -eq "0" ]; then
@@ -291,6 +335,56 @@ get_item_str() {
     return $res
 }
 
+init_os() {
+    local _os_="$(get_item_str "$(check_os 2)" "id")"
+    if [ "${_os_}" == "alpine" ]; then
+		# OS=alpine
+        # установить требуемые пакеты
+        # проверить что установлен coreutils, и если нет, то добавть в список устанавливаемых пакетов
+        if apk list --installed | grep coreutils > /dev/null; then
+            local list_packet=''
+        else
+            local list_packet='coreutils'
+        fi
+        # проверить что установлен virt-what, и если нет, то добавть в список устанавливаемых пакетов
+        if ! command -v virt-what >/dev/null; then
+                local list_packet="${list_packet} virt-what"
+        fi
+        # проверить что установлен sed совместимый с GNU, и если нет, то добавть в список устанавливаемых пакетов
+        sed_vers="$(sed --version | grep 'not GNU')"
+        if [ -n "${sed_vers}" ]; then
+            local list_packet="${list_packet} sed"
+        fi
+        install_packages
+
+        if [  -n "${list_packet}" ]; then
+            apk update --progress-fd 2
+            if [ "$is_debug" = "0" ]; then
+                # if ! (apk update --progress-fd 2 > /dev/null && apk add --progress-fd 2 ${list_packet} > /dev/null); then
+                if ! (apk add --progress-fd 2 ${list_packet} > /dev/null); then
+                    local _msg_="Невозможно установить пакеты ${list_packet}."
+                    if [ "${is_out_err}" -eq "0" ]; then
+                        err "${_msg_}"
+                    elif [ "${is_out_err}" -eq "1" ]; then
+                        msg "${_msg_}"
+                    fi
+                    local res_exit=1
+                fi
+            else
+                if ! (apk add --progress-fd 2 ${list_packet}); then
+                    local _msg_="Невозможно установить пакеты ${list_packet}."
+                    if [ "${is_out_err}" -eq "0" ]; then
+                        err "${_msg_}"
+                    elif [ "${is_out_err}" -eq "1" ]; then
+                        msg "${_msg_}"
+                    fi
+                    local res_exit=1
+                fi
+            fi
+		fi
+    fi
+}
+
 # Проверить что допустимые виртуалки
 check_virt() {
 	# if which virt-what &>/dev/null; then
@@ -326,81 +420,6 @@ check_virt() {
         fi
 	fi
     debug "check_virt END ====================="
-}
-
-install_packages() {
-    # ttt="$@"
-    # if [ -z "${ID}" ] || [ -z "{VERSION_ID}" ]; then
-    if [ -z "${ID+x}" ] || [ -z "{VERSION_ID+x}" ]; then
-        # . "${OS_RELEASE}"
-        local os_data=$(check_os 2)
-        ID="$(get_item_str "${os_data}" 'os')"
-        VERSION_ID="$(get_item_str "${os_data}" 'version')"
-    fi
-    if [ "${ID}" = 'debian' ]; then
-        local _cmd_="apt-get install -y $@"
-    elif [ "${ID}" = 'alpine' ]; then
-        local _cmd_="apk add $@"
-    else
-        local _cmd_=''
-    fi
-    debug "install_packages, выполняемая команда: ${_cmd_}"
-
-    if [ -z "${dry_run}" ] || [ "${dry_run}" -eq "0" ]; then
-    	# if ! "$@"; then
-        if [ -z "${is_debug}" ] || [ "${is_debug}" -eq "0" ]; then
-            ${_cmd_} > /dev/null
-        else
-            ${_cmd_} >&2
-        fi
-        local _res_=$?
-        debug "_res_: $_res_"
-    	if [ "${_res_}" -ne "0" ]; then
-	    	err "Ошибка установки пакетов: '${_cmd_}'"
-		    err "Проверьте подключение к интернету и настройки пакетного менеджера."
-		    exit 1
-        fi
-    else
-        printf "${PURPLE}Выполнить команду: '${_cmd_}'${NC}\n" 1>&2
-	fi
-}
-
-exec_cmd() {
-    if [ -z "${dry_run}" ] || [ "${dry_run}" -eq "0" ]; then
-        if [ "$is_debug" = "0" ]; then
-        	"$@" > /dev/null 2>&1
-        else
-        	"$@"
-        fi
-    else
-        local ttt="$@"
-        printf "${PURPLE}Выполнить команду: '${ttt}'${NC}\n" 1>&2
-	fi
-}
-
-exec_cmd_with_result() {
-    local res=''
-    if [ -z "${dry_run}" ] || [ "${dry_run}" -eq "0" ]; then
-        res=$("$@")
-    else
-        local ttt="$@"
-        printf "${PURPLE}Выполнить команду: '${ttt}'${NC}\n" 1>&2
-	fi
-    printf "${res}"
-}
-
-# Проверить что первый символ в строке, заданной в 1-ом аргументе, это символ, который задан во 2-ом аргументе
-_startswith() {
-  _str="$1"
-  _sub="$2"
-  echo "$_str" | grep -- "^$_sub" >/dev/null 2>&1
-}
-
-# Проверить что последний символ в строке, заданной в 1-ом аргументе, это символ, который задан во 2-ом аргументе
-_endswith() {
-  _str="$1"
-  _sub="$2"
-  echo "$_str" | grep -- "$_sub\$" >/dev/null 2>&1
 }
 
 # TRIM
@@ -906,9 +925,10 @@ wg_prepare_file_config() {
         done
     }
     # Подготовить файл с последними аргументами при установке WG
-    printf "is_debug=${_a_is_debug:=0}\n"                       > "${file_args}"
-    printf "dry_run=${_a_dry_run}\n"                            >> "${file_args}"
-    printf "use_ipv6=${_a_use_ipv6}\n"                          >> "${file_args}"
+    printf "# сохраненные аргументы для запуска" > "${file_args}"
+    # printf "is_debug=${_a_is_debug?:=0}\n"                       >> "${file_args}"
+    # printf "dry_run=${_a_dry_run}\n"                            >> "${file_args}"
+    # printf "use_ipv6=${_a_use_ipv6}\n"                          >> "${file_args}"
     printf "path_wg=${_a_path_wg}\n"                            >> "${file_args}"
     printf "file_params=${_a_file_params}\n"                    >> "${file_args}"
     printf "file_hand_params=${_a_file_hand_params}\n"          >> "${file_args}"
@@ -1325,7 +1345,7 @@ main() {
                 shift
                 ;;
             --debug)
-                local _a_is_debug='1'
+                is_debug='1'
                 ;;
             -h | --help)
                 show_help
@@ -1333,11 +1353,10 @@ main() {
                 ;;
             -6 | --use-ipv6)
                 # TODO пока не реализовано, поэтому use_ipv6 = 0. Не реализовано из-за iptables6
-                local _a_use_ipv6='0'
-                local _a_use_ipv6='1'
+                use_ipv6='1'
                 ;;
             --dry-run)
-                local _a_dry_run='1'
+                dry_run='1'
                 ;;
             -r | --rules-iptables)
                 local _a_file_rules_firewall="$(_trim "$2")"
@@ -1390,10 +1409,10 @@ main() {
     done
     # Установить пакеты, требующиеся для работы скрипта, отладочных сообщений нет совсем
     # установятся они до инициализации аргументов
-    msg "Установка пакетов, если требуется...\n"
-    local r="$(check_os 2)"
-# echo "OS --- $OS"
-    msg "Установка пакетов закончилась\n"
+    msg "Инициализация...\n"
+    # local r="$(check_os 2)"
+    init_os
+    msg "Инициализация закончилась...\n"
 
     is_update_file_args="${is_update_file_args:=0}"
     file_config="$(_add_current_dot "${file_config:="$VARS_FOR_INSTALL"}")"
@@ -1413,9 +1432,9 @@ main() {
     # fi
     cmd=${cmd:=install}
     if [ -z "${is_file_args}" ] || [ ! -f "${file_args}" ]; then
-        local _a_is_debug=${_a_is_debug:=0}
-        local _a_dry_run=${_a_dry_run:=0}
-        local _a_use_ipv6=${_a_use_ipv6:=0}
+        # local _a_is_debug=${_a_is_debug:=0}
+        # local _a_dry_run=${_a_dry_run:=0}
+        # local _a_use_ipv6=${_a_use_ipv6:=0}
         local _a_path_wg="$(_add_current_dot "${_a_path_wg:=/etc/wireguard}")"
         local temp_path="$(_join_path "${_a_path_wg}" "$(_add_current_dot "${_a_file_params:="$VARS_PARAMS"}")")"
         local _a_file_params="$(realpath -m "${temp_path}")"
@@ -1425,14 +1444,14 @@ main() {
         local _a_path_out="$(realpath -m "$(_add_current_dot "${_a_path_out:=${temp_path}}")")"
         local _a_file_rules_firewall="$(_add_current_dot "${_a_file_rules_firewall:=./iptables/default-iptables.rules}")"
     fi
-    set_var is_debug ${is_debug} ${_a_is_debug}
-    set_var dry_run ${dry_run} ${_a_dry_run}
+    # set_var is_debug ${is_debug} ${_a_is_debug}
+    # set_var dry_run ${dry_run} ${_a_dry_run}
+    # set_var use_ipv6 ${use_ipv6} ${_a_use_ipv6}
     set_var path_wg "${path_wg}" "${_a_path_wg}"
     set_var file_params "${file_params}" "${_a_file_params}"
     set_var file_hand_params "${file_hand_params}" "${_a_file_hand_params}"
     set_var path_out "${path_out}" "${_a_path_out}"
     set_var file_rules_firewall "${file_rules_firewall}" "${_a_file_rules_firewall}"
-    set_var use_ipv6 "${use_ipv6}" "${_a_use_ipv6}"
     if [ -z "${use_ipv6}" ]; then
         use_ipv6=0
     fi
@@ -1446,14 +1465,15 @@ main() {
     if [ -n "${is_update_file_args}" ] && [ "${is_update_file_args}" != "0" ]; then
         # file_args="$(_add_current_dot "${file_args:=${def_file_args}}")"
         # записать в файл аргументы текущего запуска
-        printf "is_debug=${is_debug}\n" > "${file_args}"
-        printf "dry_run=${dry_run}\n" >> "${file_args}"
-        printf "use_ipv6=${use_ipv6}\n" >> "${file_args}"
-        printf "path_wg=${path_wg}\n" >> "${file_args}"
-        printf "file_params=${file_params}\n" >> "${file_args}"
-        printf "file_hand_params=${file_hand_params}\n" >> "${file_args}"
-        printf "path_out=${path_out}\n" >> "${file_args}"
-        printf "file_rules_firewall=${file_rules_firewall}\n" >> "${file_args}"
+        printf "# сохраненные аргументы для запуска"            > "${file_args}"
+        # printf "is_debug=${is_debug}\n"                         >> "${file_args}"
+        # printf "dry_run=${dry_run}\n"                           >> "${file_args}"
+        # printf "use_ipv6=${use_ipv6}\n"                         >> "${file_args}"
+        printf "path_wg=${path_wg}\n"                           >> "${file_args}"
+        printf "file_params=${file_params}\n"                   >> "${file_args}"
+        printf "file_hand_params=${file_hand_params}\n"         >> "${file_args}"
+        printf "path_out=${path_out}\n"                         >> "${file_args}"
+        printf "file_rules_firewall=${file_rules_firewall}\n"   >> "${file_args}"
     fi
     # аргументы, которые не сохраняются, не имеют значений по-умолчанию и не настраиваются предварительно
     if [ "${cmd}" = "client" ]; then
