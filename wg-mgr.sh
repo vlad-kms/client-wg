@@ -221,11 +221,12 @@ restart_wg() {
         OS="$(get_item_str "${os_data}" 'os')"
     fi
     local _sn='wg-quick'
-    if [ "${OS}" ='debian' ] || [ "${OS}" ='ubuntu' ]; then
+    if [ "${OS}" = 'debian' ] || [ "${OS}" = 'ubuntu' ]; then
         local _sn="${_sn}@${SERVER_WG_NIC}"
-    elif [ "${OS}" ='alpine' ]; then
+    elif [ "${OS}" = 'alpine' ]; then
         local _sn="${_sn}.${SERVER_WG_NIC}"
     fi
+    debug 'restart_wg cmd: service "${_sn}" restart'
     exec_cmd service "${_sn}" restart
     debug "restart_wg END ====================================="
 }
@@ -412,7 +413,7 @@ check_virt() {
             err "Технически WireGuard может работать в контейнере LXC,"
             err "но есть проблемы с модулями ядра и с настройкой Wireguard в контейнере."
             err "Поэтому не заморачиваемся и пока не реализовано."
-            msg "Если хотите проигнорировать это условие и установить WIREGUARD в контейнер LXD используйте аргумент --allow-lxc (-x)."
+            err "Если хотите проигнорировать это условие и установить WIREGUARD в контейнер LXD используйте аргумент --allow-lxc (-x)."
             exit 1
         else
             msg "LXC не поддерживается."
@@ -1291,7 +1292,7 @@ wg_install() {
         err "    PostDown = <СкриптОчисткиПравилФайервола.sh>"
         err "    .............."
     fi
-
+    restart_wg
     debug "wg_install END =============================================="
 }
 
