@@ -280,7 +280,7 @@ check_os() {
 	. "${OS_RELEASE}"
 	OS="${ID}"
 	if [ "${OS}" = "debian" ] || [ "${OS}" = "raspbian" ]; then
-		if [ "${VERSION_ID}" -lt "10" ]; then
+		if [ "${VERSION_ID}" -lt "13" ]; then
             local _msg_="Ваша версия Debian (${VERSION_ID}) не поддерживается. Используйте Debian 10 Buster или старше"
             if [ "${is_out_err}" -eq "0" ]; then
 			    err "${_msg_}"
@@ -323,7 +323,7 @@ check_os() {
     debug "VERSION_ID: ${VERSION_ID}"
     debug "res_exit: ${res_exit}"
     debug "check_os END ====================="
-    printf "%s" "id=${OS}; version_id=${VERSION_ID}"
+    printf "%s" "id=${OS}; version_id=${VERSION_ID} notsupported=${res_exit}"
     return ${res_exit}
 }
 
@@ -355,6 +355,7 @@ get_item_str() {
     return $res
 }
 
+# Начальная инициализация перед выполнением скриптом основной части
 init_os() {
     debug "init_os BEGIN ==============================="
     debug "init_os args: $@"
@@ -427,6 +428,8 @@ check_virt() {
 }
 
 # TRIM
+# Убрать м слева, и справа в строке $1 символы $2
+# $2 по-умолчанию символьные пробелы \s (пробелы, табы, перевод строки)
 _trim() {
     # debug "_trim BEGIN =========================="
     # debug "ARGS: ${1} ; ${2}"
@@ -445,6 +448,8 @@ _trim() {
 }
 
 # LEFT TRIM
+# Убрать слева в строке $1 символы $2
+# $2 по-умолчанию символьные пробелы \s (пробелы, табы, перевод строки)
 _ltrim() {
     # debug "_ltrim BEGIN =========================="
     # debug "ARGS: ${1} ; ${2}"
@@ -463,6 +468,8 @@ _ltrim() {
 }
 
 # RIGHT TRIM
+# Убрать справа в строке $1 символы $2
+# $2 по-умолчанию символьные пробелы \s (пробелы, табы, перевод строки)
 _rtrim() {
     # debug "_rtrim BEGIN =========================="
     # debug "ARGS: ${1} ; ${2}"
@@ -1528,13 +1535,14 @@ main() {
             # Проверить что из под root и в противном случае прервать выполнение
             check_root
             # Проверить что выполняется в поддерживаемой OS, в противном случае прервать выполнение
+            if ! check_os > /dev/null ; then
+                err "Прервать выполнение: ОС не поддерживается" >&2
+                exit 1
+            fi
             local os_data="$(check_os)"
             ID="$(get_item_str "${os_data}" 'id')"
             OS="${ID}"
             VERSION_ID="$(get_item_str "${os_data}" 'version_id')"
-            if [ "$?" -ne "0" ]; then
-                exit 1
-            fi
             # Проверить что выполняется в поддерживаемой системе виртуализации и в противном случае прервать выполнение
             check_virt
             wg_install
