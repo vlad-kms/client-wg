@@ -27,7 +27,6 @@ DEF_CLIENT_DNS_2=1.0.0.1
 DEF_ALLOWED_IPS=0.0.0.0/0,::/0
 
 is_debug=0
-allow_lxc=0
 
 # path_wg=/etc/wireguard
 # path_wg=.
@@ -171,42 +170,45 @@ exec_cmd_with_result() {
 # 
 install_packages() {
     debug "install_packages BEGIN ==================================="
-    # ttt="$@"
+    local ttt="$@"
+    debug "install_packages, args: ${ttt}"
     # if [ -z "${ID}" ] || [ -z "{VERSION_ID}" ]; then
-    if [ -z "${ID+x}" ] || [ -z "{VERSION_ID+x}" ]; then
+    if [ -z "${OS}" ] || [ -z "{VERSION_ID}" ]; then
         # . "${OS_RELEASE}"
         local os_data=$(check_os 2)
-        ID="$(get_item_str "${os_data}" 'os')"
-        VERSION_ID="$(get_item_str "${os_data}" 'version')"
+        OS="$(get_item_str "${os_data}" 'os')"
+        VERSION_ID="$(get_item_str "${os_data}" 'version_id')"
     fi
-    debug "${os_data}"
-    if [ "${ID}" = 'debian' ] || [ "${OS}" = 'ubuntu' ] ; then
-        exec_cmd apt-get update
-        local _cmd_="apt-get install -y $@"
-    elif [ "${ID}" = 'alpine' ]; then
-        exec_cmd apk update
-        local _cmd_="apk add $@"
-    else
-        local _cmd_=''
-    fi
-    if [ -n "${_cmd_}" ]; then
-        debug "install_packages, выполняемая команда: ${_cmd_}"
-        if [ -z "${dry_run}" ] || [ "${dry_run}" -eq "0" ]; then
-            # if ! "$@"; then
-            if [ -z "${is_debug}" ] || [ "${is_debug}" -eq "0" ]; then
-                ${_cmd_} > /dev/null
-            else
-                ${_cmd_} >&2
-            fi
-            local _res_=$?
-            debug "_res_: $_res_"
-            if [ "${_res_}" -ne "0" ]; then
-                err "Ошибка установки пакетов: '${_cmd_}'"
-                err "Проверьте подключение к интернету и настройки пакетного менеджера."
-                exit 1
-            fi
+    if [ -n "${ttt}" ]; then
+        debug "install_packages, os_data: ${os_data}"
+        if [ "${OS}" = 'debian' ] || [ "${OS}" = 'ubuntu' ] ; then
+            # exec_cmd apt-get update
+            local _cmd_="apt-get install -y ${ttt}"
+        elif [ "${OS}" = 'alpine' ]; then
+            # exec_cmd apk update
+            local _cmd_="apk add ${ttt}"
         else
-            printf "${PURPLE}Выполнить команду: '${_cmd_}'${NC}\n" 1>&2
+            local _cmd_=''
+        fi
+        if [ -n "${_cmd_}" ]; then
+            debug "install_packages, выполняемая команда: ${_cmd_}"
+            if [ -z "${dry_run}" ] || [ "${dry_run}" -eq "0" ]; then
+                # if ! "$@"; then
+                if [ -z "${is_debug}" ] || [ "${is_debug}" -eq "0" ]; then
+                    ${_cmd_} > /dev/null
+                else
+                    ${_cmd_} >&2
+                fi
+                local _res_=$?
+                debug "_res_: $_res_"
+                if [ "${_res_}" -ne "0" ]; then
+                    err "Ошибка установки пакетов: '${_cmd_}'"
+                    err "Проверьте подключение к интернету и настройки пакетного менеджера."
+                    exit 1
+                fi
+            else
+                printf "${PURPLE}Выполнить команду: '${_cmd_}'${NC}\n" 1>&2
+            fi
         fi
     fi
     debug "install_packages END --==================================="
@@ -337,9 +339,15 @@ get_item_str() {
 }
 
 init_os() {
-    local _os_="$(get_item_str "$(check_os 2)" "id")"
+    debug "init_os BEGIN ==============================="
+    debug "init_os args: $@"
+    local os_data="$(check_os 2)"
+    local _os_="$(get_item_str  "${os_data}" "id")"
+    OS="${_os_}"
+    VERSION_ID="$(get_item_str  "${os_data}" "version_id")"
     if [ "${_os_}" = "alpine" ]; then
 		# OS=alpine
+        exec_cmd apk update
         # установить требуемые пакеты
         # проверить что установлен coreutils, и если нет, то добавть в список устанавливаемых пакетов
         if apk list --installed | grep coreutils > /dev/null; then
@@ -356,34 +364,36 @@ init_os() {
         if [ -n "${sed_vers}" ]; then
             local list_packet="${list_packet} sed"
         fi
-        install_packages
-
-        if [  -n "${list_packet}" ]; then
-            apk update --progress-fd 2
-            if [ "$is_debug" = "0" ]; then
-                # if ! (apk update --progress-fd 2 > /dev/null && apk add --progress-fd 2 ${list_packet} > /dev/null); then
-                if ! (apk add --progress-fd 2 ${list_packet} > /dev/null); then
-                    local _msg_="Невозможно установить пакеты ${list_packet}."
-                    if [ "${is_out_err}" -eq "0" ]; then
-                        err "${_msg_}"
-                    elif [ "${is_out_err}" -eq "1" ]; then
-                        msg "${_msg_}"
-                    fi
-                    local res_exit=1
-                fi
-            else
-                if ! (apk add --progress-fd 2 ${list_packet}); then
-                    local _msg_="Невозможно установить пакеты ${list_packet}."
-                    if [ "${is_out_err}" -eq "0" ]; then
-                        err "${_msg_}"
-                    elif [ "${is_out_err}" -eq "1" ]; then
-                        msg "${_msg_}"
-                    fi
-                    local res_exit=1
-                fi
-            fi
-		fi
+        install_packages "${list_packet}"
+        # if [  -n "${list_packet}" ]; then
+        #     apk update --progress-fd 2
+        #     if [ "$is_debug" = "0" ]; then
+        #         # if ! (apk update --progress-fd 2 > /dev/null && apk add --progress-fd 2 ${list_packet} > /dev/null); then
+        #         if ! (apk add --progress-fd 2 ${list_packet} > /dev/null); then
+        #             local _msg_="Невозможно установить пакеты ${list_packet}."
+        #             if [ "${is_out_err}" -eq "0" ]; then
+        #                 err "${_msg_}"
+        #             elif [ "${is_out_err}" -eq "1" ]; then
+        #                 msg "${_msg_}"
+        #             fi
+        #             local res_exit=1
+        #         fi
+        #     else
+        #         if ! (apk add --progress-fd 2 ${list_packet}); then
+        #             local _msg_="Невозможно установить пакеты ${list_packet}."
+        #             if [ "${is_out_err}" -eq "0" ]; then
+        #                 err "${_msg_}"
+        #             elif [ "${is_out_err}" -eq "1" ]; then
+        #                 msg "${_msg_}"
+        #             fi
+        #             local res_exit=1
+        #         fi
+        #     fi
+		# fi
+    elif [ "${_os_}" = "debian" ] || [ "${_os_}" = "ubuntu" ]; then
+        exec_cmd apt-get update
     fi
+    debug "init_os END ================================="
 }
 
 # Проверить что допустимые виртуалки
@@ -411,13 +421,14 @@ check_virt() {
             err "Технически WireGuard может работать в контейнере LXC,"
             err "но есть проблемы с модулями ядра и с настройкой Wireguard в контейнере."
             err "Поэтому не заморачиваемся и пока не реализовано."
+            msg "Если хотите проигнорировать это условте и установить WIREGUARD в контейнер LXD используйте аргумент --allow-lxc (-x)."
             exit 1
         else
             msg "LXC не поддерживается."
             msg "Технически WireGuard может работать в контейнере LXC,"
             msg "но есть проблемы с модулями ядра и с настройкой Wireguard в контейнере."
             msg "Включен режим игнорирования этой ситуации и работа продолжится на Ваш страх и риск."
-            msg "Чтобы выключить данный режим надо в скрипте найти строку 'allow_lxc=...' и заменить на 'allow_lxc=0' или закомментировать эту строку."
+            msg "Чтобы выключить данный режим НЕ используйте аргумент --allow-lxc (-x)."
         fi
 	fi
     debug "check_virt END ====================="
@@ -926,7 +937,7 @@ wg_prepare_file_config() {
         done
     }
     # Подготовить файл с последними аргументами при установке WG
-    printf "# сохраненные аргументы для запуска" > "${file_args}"
+    printf "# сохраненные аргументы для запуска\n"              >  "${file_args}"
     # printf "is_debug=${_a_is_debug?:=0}\n"                       >> "${file_args}"
     # printf "dry_run=${_a_dry_run}\n"                            >> "${file_args}"
     # printf "use_ipv6=${_a_use_ipv6}\n"                          >> "${file_args}"
@@ -1146,13 +1157,13 @@ wg_install() {
     # установка WIREGUARD
     if [ "${OS}" = 'ubuntu' ] || ([ "${OS}" = 'debian' ] && [ "${VERSION_ID}" -gt "10" ]); then
         # apt-get update > /dev/null 2>&1
-        exec_cmd apt-get update
+        # exec_cmd apt-get update
         # exit
         # install_packages apt-get install -y wireguard iptables systemd-resolved qrencode
         install_packages wireguard iptables systemd-resolved qrencode ipcalc
     elif [ "${OS}" = 'alpine' ]; then
 		# apk update > /dev/null 2>&1
-		exec_cmd apk update
+		# exec_cmd apk update
 		# install_packages apk add wireguard-tools iptables libqrencode-tools
 		install_packages wireguard-tools iptables libqrencode-tools ipcalc
     fi
@@ -1414,10 +1425,10 @@ main() {
     done
     # Установить пакеты, требующиеся для работы скрипта, отладочных сообщений нет совсем
     # установятся они до инициализации аргументов
-    msg "Инициализация...\n"
+    debug "Инициализация...\n"
     # local r="$(check_os 2)"
     init_os
-    msg "Инициализация закончилась...\n"
+    debug "Инициализация закончилась...\n"
 
     is_update_file_args="${is_update_file_args:=0}"
     file_config="$(_add_current_dot "${file_config:="$VARS_FOR_INSTALL"}")"
@@ -1470,7 +1481,7 @@ main() {
     if [ -n "${is_update_file_args}" ] && [ "${is_update_file_args}" != "0" ]; then
         # file_args="$(_add_current_dot "${file_args:=${def_file_args}}")"
         # записать в файл аргументы текущего запуска
-        printf "# сохраненные аргументы для запуска"            > "${file_args}"
+        printf "# сохраненные аргументы для запуска\n"          >  "${file_args}"
         # printf "is_debug=${is_debug}\n"                         >> "${file_args}"
         # printf "dry_run=${dry_run}\n"                           >> "${file_args}"
         # printf "use_ipv6=${use_ipv6}\n"                         >> "${file_args}"
