@@ -12,6 +12,9 @@ OS_RELEASE="/etc/os-release"
 # ARR_CMD=("install" "uninstall" "new" "prepare")
 ARR_CMD='install uninstall client prepare'
 ACTION_CLIENT='a add new d del delete list l'
+ACTION_CLIENT_ADD='a add new'
+ACTION_CLIENT_DEL='d del delete'
+ACTION_CLIENT_LIST='l list'
 
 VARS_FOR_INSTALL="./vars4install.conf"
 VARS_PARAMS="./params.conf"
@@ -280,7 +283,7 @@ check_os() {
 	. "${OS_RELEASE}"
 	OS="${ID}"
 	if [ "${OS}" = "debian" ] || [ "${OS}" = "raspbian" ]; then
-		if [ "${VERSION_ID}" -lt "13" ]; then
+		if [ "${VERSION_ID}" -lt "10" ]; then
             local _msg_="Ваша версия Debian (${VERSION_ID}) не поддерживается. Используйте Debian 10 Buster или старше"
             if [ "${is_out_err}" -eq "0" ]; then
 			    err "${_msg_}"
@@ -898,9 +901,19 @@ wg_prepare_file_config() {
     # WIREGUARD interface NIC
     printf "INST_SERVER_WG_NIC=${DEF_SERVER_WG_NIC}\n" >> "${file_config}"
     # WIREGUARD SERVER IPv4/MASK
-    printf "INST_SERVER_WG_IPV4=${DEF_SERVER_WG_IPV4}/${DEF_SERVER_WG_IPV4_MASK}\n" >> "${file_config}"
+    if [ -n "${ipv4}" ]; then
+        local _ip_="${ipv4}"
+    else
+        local _ip_="${DEF_SERVER_WG_IPV4}/${DEF_SERVER_WG_IPV4_MASK}"
+    fi
+    printf "INST_SERVER_WG_IPV4=${_ip_}\n" >> "${file_config}"
     # WIREGUARD SERVER IPv6/MASK
-    printf "INST_SERVER_WG_IPV6=${DEF_SERVER_WG_IPV6}/${DEF_SERVER_WG_IPV6_MASK}\n" >> "${file_config}"
+    if [ -n "${ipv6}" ]; then
+        local _ip_="${ipv6}"
+    else
+        local _ip_="${DEF_SERVER_WG_IPV6}/${DEF_SERVER_WG_IPV6_MASK}"
+    fi
+    printf "INST_SERVER_WG_IPV6=${_ip_}\n" >> "${file_config}"
     # WIREGUARD SERVER PORT
 	RANDOM_PORT=$(shuf -i49152-65535 -n1)
     printf "INST_SERVER_PORT=${RANDOM_PORT}\n" >> "${file_config}"
@@ -937,7 +950,7 @@ wg_prepare_file_config() {
     }
     # Подготовить файл с последними аргументами при установке WG
     printf "# сохраненные аргументы для запуска\n"              >  "${file_args}"
-    # printf "is_debug=${_a_is_debug?:=0}\n"                       >> "${file_args}"
+    # printf "is_debug=${_a_is_debug?:=0}\n"                      >> "${file_args}"
     # printf "dry_run=${_a_dry_run}\n"                            >> "${file_args}"
     # printf "use_ipv6=${_a_use_ipv6}\n"                          >> "${file_args}"
     printf "path_wg=${_a_path_wg}\n"                            >> "${file_args}"
@@ -1060,11 +1073,6 @@ wg_install() {
     INST_SERVER_WG_IPV4="${_IP_}"
     local ipv4_mask=$(get_ip_mask_4 "${INST_SERVER_WG_IPV4}" "${DEF_SERVER_WG_IPV4}" "${DEF_SERVER_WG_IPV4_MASK}" "1")
     local is_digit=$(echo "${ipv4_mask}" | sed -En '/^.*[0-9./].*$/p')
-    # if [ -z "${INST_SERVER_WG_IPV4}" ]; then
-    #     INST_SERVER_WG_IPV4=$(_question "ОБЯЗАТЕЛЬНО! IPv4 адрес интерфейса сервера wireguard" "${DEF_SERVER_WG_IPV4}/${DEF_SERVER_WG_IPV4_MASK}" "1")
-    # fi
-    # local ipv4_mask=$(get_ip_mask_4 "${INST_SERVER_WG_IPV4}" "${DEF_SERVER_WG_IPV4}" "${DEF_SERVER_WG_IPV4_MASK}" "1")
-    # local is_digit=$(echo "${ipv4_mask}" | sed -En '/^.*[0-9./].*$/p')
     if [ -n "${ipv4_mask}" ] && [ -n "${is_digit}" ]; then
         # есть IPv4
         INST_SERVER_WG_IPV4=$(echo "${ipv4_mask}" | sed -En 's/^.*ip\s*=\s*([0-9.]+).*$/\1/p')
@@ -1082,11 +1090,6 @@ wg_install() {
         INST_SERVER_WG_IPV6="${_IP_}"
         local ipv6_mask=$(get_ip_mask_6 "${INST_SERVER_WG_IPV6}" "${DEF_SERVER_WG_IPV6}" "${DEF_SERVER_WG_IPV6_MASK}" "1")
         local is_digit=$(echo "${ipv6_mask}" | sed -En '/^.*[0-9a-fA-F:].*$/p')
-        # if [ -z "${INST_SERVER_WG_IPV6}" ]; then
-        #     INST_SERVER_WG_IPV6=$(_question "ОБЯЗАТЕЛЬНО! IPv6 адреса интерфейса сервера wireguard" "${DEF_SERVER_WG_IPV6}/${DEF_SERVER_WG_IPV6_MASK}" "1")
-        # fi
-        # local ipv6_mask=$(get_ip_mask_6 "${INST_SERVER_WG_IPV6}")
-        # local is_digit=$(echo "${ipv6_mask}" | sed -En '/^.*[0-9a-fA-F:].*$/p')
         if [ -n "${ipv6_mask}" ] && [ -n "${is_digit}" ]; then
             # есть ipv6
             INST_SERVER_WG_IPV6="$(echo "${ipv6_mask}" | sed -En 's/^.*ip\s*=\s*([0-9a-fA-F:]+).*$/\1/p')"
@@ -1096,14 +1099,6 @@ wg_install() {
         INST_SERVER_WG_IPV6=''
         INST_SERVER_WG_IPV6_MASK=''
     fi
-    # # Маска IPv6 интерфейса сервера
-    # if [ "${use_ipv6}" -ne "0" ]; then
-    #     if [ -z "${INST_SERVER_WG_IPV6_MASK}" ]; then
-    #         INST_SERVER_WG_IPV6_MASK=$(_question "Длина префикса IPv6 адреса интерфейса сервера wireguard" "${DEF_SERVER_WG_IPV6_MASK}")
-    #     fi
-    # else
-    #     INST_SERVER_WG_IPV6_MASK=''
-    # fi
     # порт сервера WIREGUARD
     if [ -z "${INST_SERVER_PORT}" ]; then
         INST_SERVER_PORT=$(_question "Порт сервера wireguard" "${DEF_SERVER_PORT}")
@@ -1123,7 +1118,7 @@ wg_install() {
     # Разрешенные адреса для клиента
     # INST_ALLOWED_IPS=allowed address
     if [ -z "${INST_ALLOWED_IPS}" ]; then
-        INST_ALLOWED_IPS=$(_question "Второй DNS для клиентов" "${DEF_ALLOWED_IPS}")
+        INST_ALLOWED_IPS=$(_question "Разрешенные адреса для сервера WG" "${DEF_ALLOWED_IPS}")
     fi
     # отладка подготовленных данных
     debug "INST_SERVER_PUB_NIC: ${INST_SERVER_PUB_NIC}"
@@ -1309,6 +1304,38 @@ wg_uninstall() {
     debug "wg_uninstall END =============================================="
 }
 
+# функция работы с клиентом
+# $1 action
+# $2 name
+client_action() {
+    debug "client_action BEGIN ============================"
+    debug "client_action; args: $(echo "$@")"
+    case "$1" in
+    'list')
+        # прочитать клиентов в файле SERVER_WG_NIC.conf
+        local _file_wg="$(_join_path "${path_wg}" "${SERVER_WG_NIC}.conf")"
+        debug "${_file_wg}"
+        NUMBER_OF_CLIENTS="$(grep -c -E "^### Client" "${_file_wg}")"
+        if [ "${NUMBER_OF_CLIENTS}" = "0" ]; then
+            echo ""
+            echo "В данной конфигурации ${_file_wg}"
+            exit 1
+        fi
+        if [ -z "${is_debug}" ] || [ "${is_debug}" = "0" ]; then
+    	    grep -E "^### Client" "${_file_wg}" | cut -d ' ' -f 3 --output-delimiter " === " | nl -s ') ' -w 2
+        else
+    	    grep -E "^### Client" "${_file_wg}" | cut -d ' ' -f 3,4 --output-delimiter " === " | nl -s ') ' -w 2
+        fi
+    ;;
+    'del')
+    ;;
+    'add')
+    ;;
+    esac
+
+    debug "client_action END   ============================"
+}
+
 # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -1486,6 +1513,7 @@ main() {
     fi
     # аргументы, которые не сохраняются, не имеют значений по-умолчанию и не настраиваются предварительно
     if [ "${cmd}" = "client" ]; then
+        # проверить на валидность action для cmd client
         local l_act=$(echo " ${ACTION_CLIENT} " | sed -rn "s/.*( $action ).*/\1/p" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
         if [ -z "${l_act}" ]; then
             err "Неверный аргумент --action ( or -a ) ${action}"
@@ -1546,38 +1574,52 @@ main() {
             # Проверить что выполняется в поддерживаемой системе виртуализации и в противном случае прервать выполнение
             check_virt
             wg_install
-            ;;
+        ;;
         "uninstall")
             # удалить установленные пакеты и все созданные каталоги и файлы
             wg_uninstall
-            ;;
+        ;;
         "client")
             debug "Client"
-
-
-# msg "            -a, --action <action>          - указывает что делать: создать клиента, удалить клиента или получить список клиентов"
-# msg "                                             значение должно быть из ACTION_CLIENT (add, del, list)"
-# msg "                          a | add | new   :  создать файлы настроек для клиента на сервере и клиенте, файл QRcode для клиента"
-# msg "                          d | del | delete:  удалить клиента из файла настроек сервера"
-# msg "                          l | list        :  получить список клиентов из файла настроек сервера"
-# msg "            -p, --params <filename>        - созданный при install файл с уточненными данными используется для создания файлов клиента"
-# msg "            -d, --hand-params <filename>   - файл созданный вручную для определения дополнительных переменных для настройки клиентов"
-# msg "                --ip4 <address/mask>       - ipv4 адрес с маской клиента"
-# msg "                --ip6 <address/mask>       - ipv6 адрес с маской клиента"
-# msg "            -e, --allowed-ips <network>    - список ip адресов, которым разрешен доступ в формате 1.1.1.0/24,fdoo::0/64,2.2.2.2/32"
-# msg "                                             по-умолчанию только адрес клиента"
-# msg "            -n, --name <name client>       - имя клиента"
-
-
-
-            ;;
+            # -a, --action <action>
+            #   a | add | new
+            #   d | del | delete
+            #   l | list
+            # -p, --params <filename>
+            # -d, --hand-params <filename>
+            # --ip4 <address/mask>
+            # --ip6 <address/mask>
+            # -e, --allowed-ips <network>
+            # -n, --name <client_name>
+            # проверить наличие файла с конфигурацией для установки WG
+            if check_file_exists 0 "${file_params}"; then
+                . "${file_params}"
+            fi
+            # Нормализировать action
+            local _act="$(echo " ${ACTION_CLIENT} " | sed -rn "s/.*( $action ).*/\1/p" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+            case "${_act}" in
+                a | add | new)
+                    action='add'
+                ;;
+                d | del | delete)
+                    action='del'
+                ;;
+                l | list)
+                    action='list'
+                ;;
+                default)
+                    action=
+                ;;
+            esac
+            client_action "${action}" "${client_name}"
+        ;;
         "prepare")
             wg_prepare_file_config
-            ;;
+        ;;
         *)
             err "Неверная команда: ${cmd}"
             show_help
-            ;;
+        ;;
     esac
 
     debug "main END"
