@@ -214,6 +214,22 @@ install_packages() {
     debug "install_packages END --==================================="
 }
 
+restart_wg() {
+    debug "restart_wg BEGIN ==================================="
+    if [ -z "${OS}" ] || [ -z "{VERSION_ID}" ]; then
+        local os_data=$(check_os 2)
+        OS="$(get_item_str "${os_data}" 'os')"
+    fi
+    local _sn='wg-quick'
+    if [ "${OS}" ='debian' ] || [ "${OS}" ='ubuntu' ]; then
+        local _sn="${_sn}@${SERVER_WG_NIC}"
+    elif [ "${OS}" ='alpine' ]; then
+        local _sn="${_sn}.${SERVER_WG_NIC}"
+    fi
+    exec_cmd service "${_sn}" restart
+    debug "restart_wg END ====================================="
+}
+
 # Проверить что первый символ в строке, заданной в 1-ом аргументе, это символ, который задан во 2-ом аргументе
 _startswith() {
   _str="$1"
@@ -365,31 +381,6 @@ init_os() {
             local list_packet="${list_packet} sed"
         fi
         install_packages "${list_packet}"
-        # if [  -n "${list_packet}" ]; then
-        #     apk update --progress-fd 2
-        #     if [ "$is_debug" = "0" ]; then
-        #         # if ! (apk update --progress-fd 2 > /dev/null && apk add --progress-fd 2 ${list_packet} > /dev/null); then
-        #         if ! (apk add --progress-fd 2 ${list_packet} > /dev/null); then
-        #             local _msg_="Невозможно установить пакеты ${list_packet}."
-        #             if [ "${is_out_err}" -eq "0" ]; then
-        #                 err "${_msg_}"
-        #             elif [ "${is_out_err}" -eq "1" ]; then
-        #                 msg "${_msg_}"
-        #             fi
-        #             local res_exit=1
-        #         fi
-        #     else
-        #         if ! (apk add --progress-fd 2 ${list_packet}); then
-        #             local _msg_="Невозможно установить пакеты ${list_packet}."
-        #             if [ "${is_out_err}" -eq "0" ]; then
-        #                 err "${_msg_}"
-        #             elif [ "${is_out_err}" -eq "1" ]; then
-        #                 msg "${_msg_}"
-        #             fi
-        #             local res_exit=1
-        #         fi
-        #     fi
-		# fi
     elif [ "${_os_}" = "debian" ] || [ "${_os_}" = "ubuntu" ]; then
         exec_cmd apt-get update
     fi
@@ -421,7 +412,7 @@ check_virt() {
             err "Технически WireGuard может работать в контейнере LXC,"
             err "но есть проблемы с модулями ядра и с настройкой Wireguard в контейнере."
             err "Поэтому не заморачиваемся и пока не реализовано."
-            msg "Если хотите проигнорировать это условте и установить WIREGUARD в контейнер LXD используйте аргумент --allow-lxc (-x)."
+            msg "Если хотите проигнорировать это условие и установить WIREGUARD в контейнер LXD используйте аргумент --allow-lxc (-x)."
             exit 1
         else
             msg "LXC не поддерживается."
@@ -1001,15 +992,9 @@ inst_nftables(){
 
 wg_install() {
     debug "wg_install BEGIN ============================================"
-    # debug "file_config__: ${file_config}"
-    # debug "file_params__: ${file_params}"
-    # debug "${OS}"
     debug "file_config: ${file_config}"
     debug "pwd: $(pwd)"
     # проверить наличие файла с конфигурацией для установки WG
-    # check_file_exists 0 "${file_config}" "Нет файла с конфигурацией для установки WIREGUARD ${file_config}"
-    # check_file_exists 0 "${file_config}"
-    # if [ check_file_exists 0 "${file_config}" '' > /dev/null 2>&1 ]; then
     if check_file_exists 0 "${file_config}"; then
         . "${file_config}" #> /dev/null # 2>&1
     fi
