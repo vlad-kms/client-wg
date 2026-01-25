@@ -226,8 +226,8 @@ restart_wg() {
     elif [ "${OS}" = 'alpine' ]; then
         local _sn="${_sn}.${SERVER_WG_NIC}"
     fi
-    debug 'restart_wg cmd: service "${_sn}" restart'
-    exec_cmd service "${_sn}" restart
+    debug "restart_wg cmd: service ${_sn} restart"
+    exec_cmd service "${_sn}" 'restart'
     debug "restart_wg END ====================================="
 }
 
