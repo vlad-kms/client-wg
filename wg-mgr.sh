@@ -1323,15 +1323,11 @@ client_action() {
         local _file_wg="$(realpath -m "$(_join_path "${path_wg}" "${SERVER_WG_NIC}.conf")")"
         debug "${_file_wg}"
         NUMBER_OF_CLIENTS="$(grep -c -E "^### Client" "${_file_wg}")"
-        if [ "${NUMBER_OF_CLIENTS}" = "0" ]; then
-            echo ""
-            echo "В данной конфигурации ${_file_wg}"
-            exit 1
-        fi
+        msg "В данной конфигурации ${_file_wg} клиентов ${NUMBER_OF_CLIENTS}:\n"
         if [ -z "${is_debug}" ] || [ "${is_debug}" = "0" ]; then
-    	    grep -E "^### Client" "${_file_wg}" | cut -d ' ' -f 3 --output-delimiter " === " | nl -s ') ' -w 2
+    	    msg "$(grep -E "^### Client" "${_file_wg}" | cut -d ' ' -f 3 --output-delimiter " === " | nl -s ') ' -w 2)"
         else
-    	    grep -E "^### Client" "${_file_wg}" | cut -d ' ' -f 3,4 --output-delimiter " === " | nl -s ') ' -w 2
+    	    msg "$(grep -E "^### Client" "${_file_wg}" | cut -d ' ' -f 3,4 --output-delimiter " === " | nl -s ') ' -w 2)"
         fi
     ;;
     'del')
@@ -1349,6 +1345,7 @@ client_action() {
 # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 main() {
+    debug "main BEGIN +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"
     if [ -z "$1" ]; then
         # show_help
         local cmd=install
@@ -1541,7 +1538,6 @@ main() {
         fi
     fi
 
-    debug "main BEGIN"
     debug "cmd_________________: ${cmd}"
     debug "is_update_file_args_: ${is_update_file_args}"
     debug "is_debug____________: ${is_debug}"
@@ -1667,7 +1663,7 @@ main() {
         ;;
     esac
 
-    debug "main END"
+    debug "main END +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"
 }
 
 ########################
