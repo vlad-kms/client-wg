@@ -1,5 +1,7 @@
 #!/bin/sh
 
+# TODO Разобраться с DNS в Alpine linux. Пока в Alpine чистый список DNS для интерфейса сервера
+
 RED='\033[0;31m'
 ORANGE='\033[0;33m'
 GREEN='\033[0;32m'
@@ -15,6 +17,7 @@ ACTION_CLIENT='a add new d del delete list l'
 ACTION_CLIENT_ADD='a add new'
 ACTION_CLIENT_DEL='d del delete'
 ACTION_CLIENT_LIST='l list'
+DELIMITER_TITLE_CLIENT='='
 
 VARS_FOR_INSTALL="./vars4install.conf"
 VARS_PARAMS="./params.conf"
@@ -25,8 +28,7 @@ DEF_SERVER_WG_IPV4_MASK=24
 DEF_SERVER_WG_IPV6=fc00:66:66:66::1
 DEF_SERVER_WG_IPV6_MASK=64
 DEF_SERVER_PORT=32124
-DEF_CLIENT_DNS_1=1.1.1.1
-DEF_CLIENT_DNS_2=1.0.0.1
+DEF_CLIENT_DNS=1.1.1.1,1.0.0.1
 DEF_ALLOWED_IPS=0.0.0.0/0,::/0
 
 is_debug=0
@@ -79,6 +81,7 @@ show_help() {
     msg "                --ip6 <address/mask>       - IPv6 (ip/mask) клиента"
     msg "            -e, --allowed-ips <network>    - список ip адресов, которым разрешен доступ в формате 1.1.1.0/24,fdoo::0/64,2.2.2.2/32"
     msg "                                             по-умолчанию только адрес клиента"
+    msg "                --dns <dns1,dns2>          - список ip адресов DNS"
     msg "            -n, --name <name client>       - имя клиента"
     msg " "
     msg "common options:"
@@ -158,7 +161,9 @@ exec_cmd() {
         if [ "$is_debug" = "0" ]; then
         	"$@" > /dev/null 2>&1
         else
-        	"$@"
+            printf "${GREEN}" >&2
+        	"$@" >&2
+            printf "${NC}" >&2
         fi
     else
         local ttt="$@"
@@ -170,6 +175,7 @@ exec_cmd_with_result() {
     local res=''
     if [ -z "${dry_run}" ] || [ "${dry_run}" -eq "0" ]; then
         res=$("$@")
+        debug "${res}"
     else
         local ttt="$@"
         printf "${PURPLE}Выполнить команду: '${ttt}'${NC}\n" 1>&2
@@ -207,7 +213,9 @@ install_packages() {
                 if [ -z "${is_debug}" ] || [ "${is_debug}" -eq "0" ]; then
                     ${_cmd_} > /dev/null
                 else
+                    printf "${GREEN}"
                     ${_cmd_} >&2
+                    printf "${NC}"
                 fi
                 local _res_=$?
                 debug "_res_: $_res_"
@@ -394,7 +402,9 @@ init_os() {
         fi
         install_packages "${list_packet}"
     elif [ "${_os_}" = "debian" ] || [ "${_os_}" = "ubuntu" ]; then
+        printf "${GREEN}"
         exec_cmd apt-get update
+        printf "${NC}"
     fi
     debug "init_os END ================================="
 }
@@ -950,9 +960,7 @@ wg_prepare_file_config() {
         printf "INST_SERVER_PUB_KEY=\n" >> "${file_config}"
     fi
     # FIRST DNS FOR CLIENT 
-    printf "INST_CLIENT_DNS_1=${DEF_CLIENT_DNS_1}\n" >> "${file_config}"
-    # SECOND DNS FOR CLIENT 
-    printf "INST_CLIENT_DNS_2=${DEF_CLIENT_DNS_2}\n" >> "${file_config}"
+    printf "INST_CLIENT_DNS=${DEF_CLIENT_DNS}\n" >> "${file_config}"
     # Разрешенные адреса для клиента
     printf "INST_ALLOWED_IPS=${DEF_ALLOWED_IPS}\n" >> "${file_config}"
     [ "$is_debug" -ne "0" ] && {
@@ -1123,12 +1131,8 @@ wg_install() {
     # Public key сервера
     # INST_SERVER_PUB_KEY=wireguatd public key
     # DNS первый для клиента
-    if [ -z "${INST_CLIENT_DNS_1}" ]; then
-        INST_CLIENT_DNS_1=$(_question "Первый DNS для клиентов" "${DEF_CLIENT_DNS_1}")
-    fi
-    # DNS второй для клиента
-    if [ -z "${INST_CLIENT_DNS_2}" ]; then
-        INST_CLIENT_DNS_2=$(_question "Второй DNS для клиентов" "${DEF_CLIENT_DNS_2}")
+    if [ -z "${INST_CLIENT_DNS}" ]; then
+        INST_CLIENT_DNS=$(_question "Первый DNS для клиентов" "${DEF_CLIENT_DNS}")
     fi
     # Разрешенные адреса для клиента
     # INST_ALLOWED_IPS=allowed address
@@ -1154,8 +1158,7 @@ wg_install() {
     else
         debug "INST_SERVER_PUB_KEY: INST_SERVER_PUB_KEY"
     fi
-    debug "INST_CLIENT_DNS_1: ${INST_CLIENT_DNS_1}"
-    debug "INST_CLIENT_DNS_2: ${INST_CLIENT_DNS_2}"
+    debug "INST_CLIENT_DNS: ${INST_CLIENT_DNS}"
     debug "INST_ALLOWED_IPS: ${INST_ALLOWED_IPS}"
     # установка WIREGUARD
     if [ "${OS}" = 'ubuntu' ] || ([ "${OS}" = 'debian' ] && [ "${VERSION_ID}" -gt "10" ]); then
@@ -1169,6 +1172,8 @@ wg_install() {
 		# exec_cmd apk update
 		# install_packages apk add wireguard-tools iptables libqrencode-tools
 		install_packages wireguard-tools iptables libqrencode-tools ipcalc
+        # TODO Разобраться с DNS в Alpine linux. Пока в Alpine чистый список DNS для интерфейса сервера
+        # INST_CLIENT_DNS=
     fi
 	# Проверить что WireGuard установлен
     is_wg_install=$(command -v wg)
@@ -1226,8 +1231,7 @@ wg_install() {
 	printf "SERVER_PORT=${INST_SERVER_PORT}\n" >> "${file_params}"
 	printf "SERVER_PRIV_KEY=${INST_SERVER_PRIV_KEY}\n" >> "${file_params}"
 	printf "SERVER_PUB_KEY=${INST_SERVER_PUB_KEY}\n" >> "${file_params}"
-	printf "CLIENT_DNS_1=${INST_CLIENT_DNS_1}\n" >> "${file_params}"
-	printf "CLIENT_DNS_2=${INST_CLIENT_DNS_2}\n" >> "${file_params}"
+	printf "CLIENT_DNS=${INST_CLIENT_DNS}\n" >> "${file_params}"
 	printf "ALLOWED_IPS=${INST_ALLOWED_IPS}\n" >> "${file_params}"
     . "${file_params}"
     debug "SERVER_PUB_NIC: ${SERVER_PUB_NIC}"
@@ -1240,13 +1244,12 @@ wg_install() {
     debug "SERVER_PORT: ${SERVER_PORT}"
     debug "SERVER_PRIV_KEY: INST_SERVER_PRIV_KEY"
     debug "SERVER_PUB_KEY: ${SERVER_PUB_KEY}"
-    debug "CLIENT_DNS_1: ${CLIENT_DNS_1}"
-    debug "CLIENT_DNS_2: ${CLIENT_DNS_2}"
+    debug "CLIENT_DNS: ${CLIENT_DNS}"
     debug "ALLOWED_IPS: ${ALLOWED_IPS}"
 
 	# Настройка sysctl Включить форвардинг на сервере
-    local c1="$(exec_cmd echo "net.ipv4.ip_forward = 1")"
-    local c2="$(exec_cmd echo "net.ipv6.conf.all.forwarding = 1")"
+    local c1="$(exec_cmd_with_result echo "net.ipv4.ip_forward = 1")"
+    local c2="$(exec_cmd_with_result echo "net.ipv6.conf.all.forwarding = 1")"
     if [ -n "${c1}" ] && ([ -z "${dry_run}" ] || [ "${dry_run}" = "0" ]); then
         printf "${c1}\n" > "${file_sysctl}"
     fi
@@ -1278,6 +1281,9 @@ wg_install() {
     printf "Address = ${_addr_wg_serv}\n"  >> "${FILE_CONF_WG}"
     printf "ListenPort = ${SERVER_PORT}\n" >> "${FILE_CONF_WG}"
     printf "PrivateKey = ${SERVER_PRIV_KEY}\n" >> "${FILE_CONF_WG}"
+    # if [ -n "${CLIENT_DNS}" ]; then
+    #     printf "DNS = ${CLIENT_DNS}\n" >> "${FILE_CONF_WG}"
+    # fi
     # права на файл конфигурации
     chmod 0700 "${path_wg}"
     chmod 0600 "${FILE_CONF_WG}"
@@ -1292,6 +1298,18 @@ wg_install() {
         exec_cmd sysctl --system
 		exec_cmd systemctl start "wg-quick@${SERVER_WG_NIC}"
 		exec_cmd systemctl enable "wg-quick@${SERVER_WG_NIC}"
+    fi
+    # файл hand_params, дополнительные параметры
+    printf "SSH_PORT=22\n" > "${file_hand_params}"
+    printf "WG_PROTO=udp\n" >> "${file_hand_params}"
+    local _net="$(ipcalc "${SERVER_WG_IPV4}/${SERVER_WG_IPV4_MASK}" | grep -e "^Network:" | sed -En "s/^Network:\s*([^ \t]*).*$/\1/p")"
+    printf "WG_NET=${_net}\n" >> "${file_hand_params}"
+    if [ "${OS}" = 'alpine' ]; then
+        local _net="$(ipcalc "${SERVER_WG_IPV6}/${SERVER_WG_IPV6_MASK}" | grep -e "^Network:" | sed -En "s/^Network:\s*([^ \t]*).*$/\1/p")"
+        printf "WG_NET6=${_net}\n" >> "${file_hand_params}"
+    elif [ "${OS}" = 'debian' ] || [ "${OS}" = 'ubuntu' ]; then
+        local _net="$(ipcalc "${SERVER_WG_IPV6}/${SERVER_WG_IPV6_MASK}" | grep -e "^Prefix:" | sed -En "s/^Prefix:\s*([^ \t]*).*$/\1/p")"
+        printf "WG_NET6=${_net}\n" >> "${file_hand_params}"
     fi
     # работа с настройками для iptables
     if which iptables > /dev/null 2>&1; then
@@ -1329,9 +1347,10 @@ client_action() {
     debug "_file_wg: ${_file_wg}"
     case "$1" in
     'list')
+        local _d="${DELIMITER_TITLE_CLIENT}"
         # прочитать клиентов в файле SERVER_WG_NIC.conf
         debug "${_file_wg}"
-        NUMBER_OF_CLIENTS="$(grep -c -E "^### Client" "${_file_wg}")"
+        NUMBER_OF_CLIENTS="$(grep -c -E "^###\s*$_d\s*Client" "${_file_wg}")"
         # if [ -z "${NUMBER_OF_CLIENTS}" ]; then
         #     msg "В данной конфигурации ${_file_wg} клиентов 0:\n"
         # else
@@ -1339,27 +1358,23 @@ client_action() {
         # fi
         msg "В данной конфигурации ${_file_wg} клиентов ${NUMBER_OF_CLIENTS}:\n"
         if [ -z "${is_debug}" ] || [ "${is_debug}" = "0" ]; then
-    	    msg "$(grep -E "^### Client" "${_file_wg}" | cut -d ' ' -f 3 --output-delimiter " === " | nl -s ') ' -w 2)"
+    	    msg "$(grep -E "^###\s*$_d\s*Client" "${_file_wg}" | cut -d "$_d" -f 3 --output-delimiter " === " | nl -s ') ' -w 2)"
         else
-    	    msg "$(grep -E "^### Client" "${_file_wg}" | cut -d ' ' -f 3,4 --output-delimiter " === " | nl -s ') ' -w 2)"
+    	    msg "$(grep -E "^###\s*$_d\s*Client" "${_file_wg}" | cut -d "$_d" -f 3,4 --output-delimiter " === " | nl -s ') ' -w 2)"
         fi
     ;;
     'del')
     ;;
     'add')
-        # INST_SERVER_PUB_NIC=eth0
-        # INST_SERVER_PUB_IP=192.168.15.167
-        # INST_SERVER_WG_NIC=wg2
-        # INST_SERVER_WG_IPV4=172.17.1.1/26
-        # INST_SERVER_WG_IPV6=fd00:ffff::1/80
-        # INST_SERVER_PORT=64092
+        # SERVER_WG_IPV4=172.17.1.1/26
+        # SERVER_WG_IPV6=fd00:ffff::1/80
         # INST_SERVER_PRIV_KEY=
         # INST_SERVER_PUB_KEY=
-        # INST_CLIENT_DNS_1=1.1.1.1
-        # INST_CLIENT_DNS_2=1.0.0.1
-        # INST_ALLOWED_IPS=0.0.0.0/0,::/0
+        # CLIENT_DNS_1=1.1.1.1
+        # CLIENT_DNS_2=1.0.0.1
+        # ALLOWED_IPS=0.0.0.0/0,::/0
 
-        # Проверить валидность IP адреса 
+        # Подготовить адрес:порт для подключения клиента Wireguard
         # И если тип адреса SERVER_PUB_IP есть IPv6, то добавить по краям []
         if check_ipv6_addr "${SERVER_PUB_IP}"; then
             if ! _startswith "${SERVER_PUB_IP}" "["; then
@@ -1383,8 +1398,68 @@ client_action() {
             local _poprt="${SERVER_PORT}"
         fi
         debug "_port: ${_port}"
-        ENDPOINT="${SERVER_PUB_IP}:${_port}"
-        debug "ENDPOINT: ${ENDPOINT}"
+        local _endpoint="${SERVER_PUB_IP}:${_port}"
+        debug "_endpoint: ${_endpoint}"
+        # AllowedIPs для клиента
+        local _allowed_ips_client='0.0.0.0/0'
+        if [ -n "${use_ipv6}" ] && [ "${use_ipv6}" = "1" ]; then
+            local _allowed_ips_client="${_allowed_ips_client}, ::0/0"
+        fi
+        debug "_allowed_ips_client: ${_allowed_ips_client}"
+        # IPv4 клиента
+        if [ -z "${ipv4}" ]; then
+            local _ipv4_client="${INST_SERVER_WG_IPV4}/${INST_SERVER_WG_IPV4_MASK}"
+        else
+            local _ipv4_client="${ipv4}"
+        fi
+        # IPv6 клиента
+        if [ -n "${use_ipv6}" ] && [ "${use_ipv6}" != 0 ]; then
+            if [ -z "${ipv4}" ]; then
+                local _ipv6_client="${INST_SERVER_WG_IPV6}/${INST_SERVER_WG_IPV6_MASK}"
+            else
+                local _ipv6_client="${ipv6}"
+            fi
+        fi
+        debug "_ipv4_client: ${_ipv4_client}"
+        debug "_ipv6_client: ${_ipv6_client}"
+        local _address="${_ipv4_client}"
+        if [ -n "${use_ipv6}" ] && [ "${use_ipv6}" != "0" ] && [ -n "${_ipv6_client}" ]; then
+            if [ -z "${_address}" ]; then
+                local _address="${_ipv4_client}"
+            else
+                local _address="${_ipv4_client}, ${_ipv6_client}"
+            fi
+        fi
+        debug "Address: ${_address}"
+        # AllowedIPs для сервера
+        if [ -n "${client_allowed_ips}" ]; then
+            local _allowed_ips_srv="${client_allowed_ips}"
+        else
+            local _allowed_ips_srv="${ALLOWED_IPS}"
+        fi
+        debug "_allowed_ips_srv: ${_ipv4_client}"
+        # конфигурация для клиента
+        # [Interface]
+        # PrivateKey = 
+        # ! Address = 10.16.16.4/24
+        # #DNS = 9.9.9.9, 149.112.112.112
+        # DNS = 192.168.15.3
+        #
+        # [Peer]
+        # PublicKey = 
+        # PresharedKey = 
+        # ! Endpoint = 77.105.139.99:51820
+        # ! AllowedIPs = 0.0.0.0/0, ::0/0
+        
+        # конфигурация для сервера
+        # ### Client "ASUS_home" 1.2.3 ###
+        # [Peer]
+        # PublicKey = 
+        # PresharedKey = 
+        # ! AllowedIPs = 10.16.16.4/32
+        # ### end ASUS home ###
+
+
         # сформировать ключи клиента
         # сформировать файлы конфигурации для клиента и сервера
         # сформировать QR-код для клиента
@@ -1500,6 +1575,11 @@ main() {
                 nic_name="$2"
                 shift
             ;;
+            --dns)
+                # <dns1,dns2>   - список ip адресов DNS"
+                dns_list="$2"
+                shift
+            ;;
             *)
                 err "Неверный параметр: ${1}"
                 return 1
@@ -1511,12 +1591,15 @@ main() {
     # установятся они до инициализации аргументов
     debug "Инициализация...\n"
     # local r="$(check_os 2)"
-    # TODO крмменты временно для ускорения отладки, в ПРОД убрать
-    # if [ -z "${is_debug}" ] || [ "${is_debug}" = 0 ]; then
-    #     init_os > /dev/null 2>&1
-    # else
-    #     init_os
-    # fi
+    # TODO проверка $cmd временно для ускорения отладки, в ПРОД убрать
+    if [ "${cmd}" != "client" ]; then
+        if [ -z "${is_debug}" ] || [ "${is_debug}" = 0 ]; then
+            init_os > /dev/null 2>&1
+        else
+            init_os
+        fi
+    fi
+    # TODO проверка $cmd временно для ускорения отладки, в ПРОД убрать
     debug "Инициализация закончилась...\n"
 
     is_update_file_args="${is_update_file_args:=0}"
@@ -1653,6 +1736,7 @@ main() {
         INST_SERVER_WG_IPV6="$(get_item_str "${_ip_}" "ip")"
         INST_SERVER_WG_IPV6_MASK="$(get_item_str "${_ip_}" "mask")"
     fi
+    # INST_CLIENT_DNS
     # printf "INST_SERVER_WG_IPV4=${_ip_}\n" >> "${file_config}"
 
     case "$cmd" in
