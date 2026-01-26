@@ -42,7 +42,7 @@ oi6='[0-9a-fA-F]{1,4}'
 ai4='((1?[0-9][0-9]?|2[0-4][0-9]|25[0-5])\.){3}(1?[0-9][0-9]?|2[0-4][0-9]|25[0-5])'
 
 show_help() {
-    # -c -r -p -d -h -o -6 -w -f -u -a -l -n -x
+    # -c -r -p -d -h -o -6 -w -f -u -a -l -n -x -i
     msg "Использование:"
     msg "wg-mgr.sh [command] [options]"
     msg "command (одна из [ ${ARR_CMD} ], по-умолчанию install):"
@@ -52,12 +52,18 @@ show_help() {
     msg "            -r, --rules-iptables <filename>- файл с правилами iptables (ip6tables)"
     msg "            -p, --params <filename>        - создается файл с уточненными данными после инсталяции"
     msg "            -d, --hand-params <filename>   - файл созданный вручную для определения дополнительных переменных"
+    msg "            -i, --wg-nic <nic_name>        - имя интерфейса для установки сервера WIREGUARD"
+    msg "                --ip4 <address/mask>       - IPv4 (ip/mask) сервера для установки сервера WIREGUARD"
+    msg "                --ip6 <address/mask>       - IPv6 (ip/mask) сервера для установки сервера WIREGUARD"
     msg " "
     msg "    uninstall  - удаление пакета wireguard и других, установленных вместе с ним, а также удалить все созданные каталоги и файлы"
     msg " "
     msg "    prepare    - подготовить файл с данными для инсталяции"
     msg "        options:"
     msg "            -c, --config <filename> - файл для подготовки данных для инсталяции"
+    msg "            -i, --wg-nic <nic_name>        - имя интерфейса для подготовки файла настроек для дальнейшей работы скрипта"
+    msg "                --ip4 <address/mask>       - IPv4 (ip/mask) сервера для подготовки файла настроек для дальнейшей работы скрипта"
+    msg "                --ip6 <address/mask>       - IPv6 (ip/mask) сервера для подготовки файла настроек для дальнейшей работы скрипта"
     msg " "
     msg "    client     - работа с клиентами: добавить, удалить, получить список"
     msg "        options:"
@@ -68,8 +74,9 @@ show_help() {
     msg "                          l | list        :  получить список клиентов из файла настроек сервера"
     msg "            -p, --params <filename>        - созданный при install файл с уточненными данными используется для создания файлов клиента"
     msg "            -d, --hand-params <filename>   - файл созданный вручную для определения дополнительных переменных для настройки клиентов"
-    msg "                --ip4 <address/mask>       - ipv4 адрес с маской клиента"
-    msg "                --ip6 <address/mask>       - ipv6 адрес с маской клиента"
+    msg "            -i, --wg-nic <nic_name>        - имя интерфейса сервера для подключения клиента"
+    msg "                --ip4 <address/mask>       - IPv4 (ip/mask) клиента"
+    msg "                --ip6 <address/mask>       - IPv6 (ip/mask) клиента"
     msg "            -e, --allowed-ips <network>    - список ip адресов, которым разрешен доступ в формате 1.1.1.0/24,fdoo::0/64,2.2.2.2/32"
     msg "                                             по-умолчанию только адрес клиента"
     msg "            -n, --name <name client>       - имя клиента"
@@ -326,7 +333,7 @@ check_os() {
     debug "VERSION_ID: ${VERSION_ID}"
     debug "res_exit: ${res_exit}"
     debug "check_os END ====================="
-    printf "%s" "id=${OS}; version_id=${VERSION_ID} notsupported=${res_exit}"
+    printf "%s" "id=${OS}; version_id=${VERSION_ID}; notsupported=${res_exit}"
     return ${res_exit}
 }
 
@@ -722,9 +729,9 @@ get_ip_mask_4() {
             mask=""
         fi
     fi
-    # debug "ip=${ip} mask=${mask}"
+    # debug "ip=${ip}; mask=${mask}"
     # debug "get_ip_mask_4 END ================================="
-    printf "%s" "ip=${ip} mask=${mask}"
+    printf "%s" "ip=${ip}; mask=${mask}"
 }
 
 # Распарсить строку IPv6 в адрес и маску
@@ -734,12 +741,12 @@ get_ip_mask_4() {
 # $4 - флаг что для возврата, если в ${1} ошибочные адрес или маска, то будут подставляться или "${2}" или "${3}"
 #      если он присутствует и не равен 0, то будут подстановки
 #      если он отсутствует или   равен 0, то подстановок не будет и вместо ошибочного элемента будет возвращаться "" (пустая строка)
-# Возвращает строку в формате 'ip=[addr_ipv6] mask=[mask_ipv6]'
+# Возвращает строку в формате 'ip=[addr_ipv6]; mask=[mask_ipv6]'
 get_ip_mask_6() {
     local ip_full=$1
     local args="$@"
-    debug "get_ip_mask_6 BEGIN ================================"
-    debug "ARGS: ${args}"
+    # debug "get_ip_mask_6 BEGIN ================================"
+    # debug "ARGS: ${args}"
     local si6='0-9a-fA-F:'
     if [ -z "$4" ] || [ "$4" = "0" ]; then
         local flag_use_def=0
@@ -768,9 +775,9 @@ get_ip_mask_6() {
             local mask=""
         fi
     fi
-    debug "ip=${ip} mask=${mask}"
-    debug "get_ip_mask_6 END =================================="
-    printf "%s" "ip=${ip} mask=${mask}"
+    # debug "ip=${ip}; mask=${mask}"
+    # debug "get_ip_mask_6 END =================================="
+    printf "%s" "ip=${ip}; mask=${mask}"
 }
 
 # Проверить валидность адреса и маски ipv4. Адрес должен быть в формате <addIPv4>/<maskIPv4>
@@ -899,21 +906,24 @@ wg_prepare_file_config() {
     fi
     printf "INST_SERVER_PUB_IP=${INST_SERVER_PUB_IP}\n" >> "${file_config}"
     # WIREGUARD interface NIC
-    printf "INST_SERVER_WG_NIC=${DEF_SERVER_WG_NIC}\n" >> "${file_config}"
+    printf "INST_SERVER_WG_NIC=${INST_SERVER_WG_NIC:=${DEF_SERVER_WG_NIC}}\n" >> "${file_config}"
     # WIREGUARD SERVER IPv4/MASK
-    if [ -n "${ipv4}" ]; then
-        local _ip_="${ipv4}"
-    else
-        local _ip_="${DEF_SERVER_WG_IPV4}/${DEF_SERVER_WG_IPV4_MASK}"
-    fi
-    printf "INST_SERVER_WG_IPV4=${_ip_}\n" >> "${file_config}"
+    # if [ -n "${ipv4}" ]; then
+    #     local _ip_="${ipv4}"
+    # else
+    #     local _ip_="${DEF_SERVER_WG_IPV4}/${DEF_SERVER_WG_IPV4_MASK}"
+    # fi
+    # printf "INST_SERVER_WG_IPV4=${_ip_}\n" >> "${file_config}"
+    printf "INST_SERVER_WG_IPV4=${INST_SERVER_WG_IPV4:=${DEF_SERVER_WG_IPV4}}/${INST_SERVER_WG_IPV4_MASK:=${DEF_SERVER_WG_IPV4_MASK}}\n" >> "${file_config}"
+
     # WIREGUARD SERVER IPv6/MASK
-    if [ -n "${ipv6}" ]; then
-        local _ip_="${ipv6}"
-    else
-        local _ip_="${DEF_SERVER_WG_IPV6}/${DEF_SERVER_WG_IPV6_MASK}"
-    fi
-    printf "INST_SERVER_WG_IPV6=${_ip_}\n" >> "${file_config}"
+    # if [ -n "${ipv6}" ]; then
+    #     local _ip_="${ipv6}"
+    # else
+    #     local _ip_="${DEF_SERVER_WG_IPV6}/${DEF_SERVER_WG_IPV6_MASK}"
+    # fi
+    # printf "INST_SERVER_WG_IPV6=${_ip_}\n" >> "${file_config}"
+    printf "INST_SERVER_WG_IPV6=${INST_SERVER_WG_IPV6:=${DEF_SERVER_WG_IPV6}}/${INST_SERVER_WG_IPV6_MASK:=${DEF_SERVER_WG_IPV6_MASK}}\n" >> "${file_config}"
     # WIREGUARD SERVER PORT
 	RANDOM_PORT=$(shuf -i49152-65535 -n1)
     printf "INST_SERVER_PORT=${RANDOM_PORT}\n" >> "${file_config}"
@@ -953,6 +963,7 @@ wg_prepare_file_config() {
     # printf "is_debug=${_a_is_debug?:=0}\n"                      >> "${file_args}"
     # printf "dry_run=${_a_dry_run}\n"                            >> "${file_args}"
     # printf "use_ipv6=${_a_use_ipv6}\n"                          >> "${file_args}"
+    # printf "nic_name=${nic_name}\n"                             >> "${file_args}"
     printf "path_wg=${_a_path_wg}\n"                            >> "${file_args}"
     printf "file_params=${_a_file_params}\n"                    >> "${file_args}"
     printf "file_hand_params=${_a_file_hand_params}\n"          >> "${file_args}"
@@ -1015,10 +1026,6 @@ wg_install() {
     debug "wg_install BEGIN ============================================"
     debug "file_config: ${file_config}"
     debug "pwd: $(pwd)"
-    # проверить наличие файла с конфигурацией для установки WG
-    if check_file_exists 0 "${file_config}"; then
-        . "${file_config}" #> /dev/null # 2>&1
-    fi
     # публичный интерфейс сервера
     if [ -z "${INST_SERVER_PUB_NIC}" ]; then
         # grep default | sed -E 's/.*\sdev\s*([^\s]*).*/\1/'
@@ -1236,7 +1243,7 @@ wg_install() {
         printf "${c1}\n" > "${file_sysctl}"
     fi
     if [ -n "${c2}" ] && ([ -z "${dry_run}" ] || [ "${dry_run}" = "0" ]); then
-        printf "${c2}\n" > "${file_sysctl}"
+        printf "${c2}\n" >> "${file_sysctl}"
     fi
     # if [ -z "${dry_run}" ] || [ "${dry_run}" -eq "0" ]; then
     #     echo "net.ipv4.ip_forward = 1" > "${file_sysctl}"
@@ -1313,7 +1320,7 @@ client_action() {
     case "$1" in
     'list')
         # прочитать клиентов в файле SERVER_WG_NIC.conf
-        local _file_wg="$(_join_path "${path_wg}" "${SERVER_WG_NIC}.conf")"
+        local _file_wg="$(realpath -m "$(_join_path "${path_wg}" "${SERVER_WG_NIC}.conf")")"
         debug "${_file_wg}"
         NUMBER_OF_CLIENTS="$(grep -c -E "^### Client" "${_file_wg}")"
         if [ "${NUMBER_OF_CLIENTS}" = "0" ]; then
@@ -1363,83 +1370,88 @@ main() {
             -c | --config)
                 file_config="$(_trim "$2")"
                 shift
-                ;;
+            ;;
             -p | --params)
                 local _a_file_params="$(_trim "$2")"
                 shift
-                ;;
+            ;;
             -o | --out-path)
                 local _a_path_out="$(_trim "$2")"
                 shift
-                ;;
+            ;;
             -w | --wg-path)
                 local _a_path_wg="$(_trim "$2")"
                 shift
-                ;;
+            ;;
             --debug)
                 is_debug='1'
-                ;;
+            ;;
             -h | --help)
                 show_help
                 exit 0
-                ;;
+            ;;
             -6 | --use-ipv6)
                 # TODO пока не реализовано, поэтому use_ipv6 = 0. Не реализовано из-за iptables6
                 use_ipv6='1'
-                ;;
+            ;;
             --dry-run)
                 dry_run='1'
-                ;;
+            ;;
             -r | --rules-iptables)
                 local _a_file_rules_firewall="$(_trim "$2")"
                 shift
-                ;;
+            ;;
             -d | --hand-params)
                 local _a_file_hand_params="${2}"
                 shift
-                ;;
+            ;;
             -f | --file-args)
                 # путь к файлу где хранятся аргументы для командной строки"
                 file_args="${2}"
                 is_file_args=is_file_args
                 shift
-                ;;
+            ;;
             -u | --update-args)
                 # флаг, что надо обновить файл с аргументами соответственно текущим аргументам командной строки
                 is_update_file_args=1
-                ;;
+            ;;
             -a | --action)
                 action="$2"
                 shift
-                ;;
+            ;;
             --ip4)
                 # <address/mask>
                 ipv4="$2"
                 shift
-                ;;
+            ;;
             --ip6)
                 # <address/mask>
                 ipv6="$2"
                 shift
-                ;;
+            ;;
             -e | --allowed_ips)
                 # <address/mask>
                 client_allowed_ips="$2"
                 shift
-                ;;
+            ;;
             -n | --name)
                 # <address/mask>
                 client_name="$2"
                 shift
-                ;;
+            ;;
             -x | --allow-lxc)
                 # флаг, что не блокировать установку WIREGUARD в контейнеры и VM LXD"
                 allow_lxc=1
-                ;;
+            ;;
+            -i | --wg-nic)
+                # <nic_name>    - имя интерфейса сервера WIREGUARD"
+                nic_name="$2"
+                shift
+            ;;
             *)
                 err "Неверный параметр: ${1}"
                 return 1
-                ;;
+            ;;
         esac
         shift 1
     done
@@ -1447,7 +1459,11 @@ main() {
     # установятся они до инициализации аргументов
     debug "Инициализация...\n"
     # local r="$(check_os 2)"
-    init_os
+    if [ -z "${is_debug}" ] || [ "${is_debug}" = 0 ]; then
+        init_os > /dev/null 2>&1
+    else
+        init_os
+    fi
     debug "Инициализация закончилась...\n"
 
     is_update_file_args="${is_update_file_args:=0}"
@@ -1471,6 +1487,7 @@ main() {
         # local _a_is_debug=${_a_is_debug:=0}
         # local _a_dry_run=${_a_dry_run:=0}
         # local _a_use_ipv6=${_a_use_ipv6:=0}
+        # local _a_nic_name="${_a_nic_name:=${DEF_SERVER_WG_NIC}}"
         local _a_path_wg="$(_add_current_dot "${_a_path_wg:=/etc/wireguard}")"
         local temp_path="$(_join_path "${_a_path_wg}" "$(_add_current_dot "${_a_file_params:="$VARS_PARAMS"}")")"
         local _a_file_params="$(realpath -m "${temp_path}")"
@@ -1483,6 +1500,7 @@ main() {
     # set_var is_debug ${is_debug} ${_a_is_debug}
     # set_var dry_run ${dry_run} ${_a_dry_run}
     # set_var use_ipv6 ${use_ipv6} ${_a_use_ipv6}
+    # set_var nic_name "${nic_name}" "${_a_nic_name}"
     set_var path_wg "${path_wg}" "${_a_path_wg}"
     set_var file_params "${file_params}" "${_a_file_params}"
     set_var file_hand_params "${file_hand_params}" "${_a_file_hand_params}"
@@ -1505,6 +1523,7 @@ main() {
         # printf "is_debug=${is_debug}\n"                         >> "${file_args}"
         # printf "dry_run=${dry_run}\n"                           >> "${file_args}"
         # printf "use_ipv6=${use_ipv6}\n"                         >> "${file_args}"
+        # printf "nic_name=${nic_name}\n"                         >> "${file_args}"
         printf "path_wg=${path_wg}\n"                           >> "${file_args}"
         printf "file_params=${file_params}\n"                   >> "${file_args}"
         printf "file_hand_params=${file_hand_params}\n"         >> "${file_args}"
@@ -1536,6 +1555,7 @@ main() {
     debug "dry_run_____________: ${dry_run}"
     debug "file_args___________: ${file_args}"
     debug "action______________: ${action}"
+    debug "nic_name____________: ${nic_name}"
     debug "ipv4________________: ${ipv4}"
     debug "ipv6________________: ${ipv6}"
     debug "client_allowed_ips__: ${client_allowed_ips}"
@@ -1557,6 +1577,31 @@ main() {
     set_mode "${path_wg}"
     set_mode "${path_out}"
     set_mode "${path_file_params}"
+
+    # проверить наличие файла с конфигурацией для установки WG
+    if check_file_exists 0 "${file_config}"; then
+        . "${file_config}" #> /dev/null # 2>&1
+    fi
+    # переопределить переменную из файла file_config
+    # INST_SERVER_WG_NIC
+    if [ -n "${nic_name}" ]; then
+        INST_SERVER_WG_NIC="${nic_name}"
+    fi
+    # INST_SERVER_WG_IPV4/INST_SERVER_WG_IPV4_MASK
+    # WIREGUARD SERVER IPv4/MASK
+    if [ -n "${ipv4}" ]; then
+        local _ip_="$(get_ip_mask_4 "${ipv4}")"
+        INST_SERVER_WG_IPV4="$(get_item_str "${_ip_}" "ip")"
+        INST_SERVER_WG_IPV4_MASK="$(get_item_str "${_ip_}" "mask")"
+    fi
+    # INST_SERVER_WG_IPV6/INST_SERVER_WG_IPV6_MASK
+    # WIREGUARD SERVER IPv6/MASK
+    if [ -n "${ipv6}" ]; then
+        local _ip_="$(get_ip_mask_6 "${ipv6}")"
+        INST_SERVER_WG_IPV6="$(get_item_str "${_ip_}" "ip")"
+        INST_SERVER_WG_IPV6_MASK="$(get_item_str "${_ip_}" "mask")"
+    fi
+    # printf "INST_SERVER_WG_IPV4=${_ip_}\n" >> "${file_config}"
 
     case "$cmd" in
         "install")
