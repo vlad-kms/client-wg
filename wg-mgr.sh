@@ -600,6 +600,8 @@ _question() {
 }
 
 # Проверить что строка является валидным адресом IPv4
+# Если валидный - возвращается 0, 
+# Иначе - возвращается 1
 check_ipv4_addr() {
     # debug "check_ipv4_addr arg1: ${1} ========================"
     if [ -n "${1}" ]; then
@@ -624,6 +626,8 @@ check_ipv4_addr() {
 }
 
 # Проверить что строка является валидной маской IPv4 (число 0-32)
+# Если валидная - возвращается 0, 
+# Иначе - возвращается 1
 check_ipv4_mask() {
     debug "check_ipv4_mask arg1: ${1} ===================="
     if [ -n "${1}" ]; then
@@ -649,6 +653,8 @@ check_ipv4_mask() {
 }
 
 # Проверить что строка является валидным адресом IPv6
+# Если валидный - возвращается 0, 
+# Иначе - возвращается 1
 check_ipv6_addr() {
     debug "check_ipv6_addr arg1: ${1} =========================="
     if [ -n "${1}" ]; then
@@ -667,6 +673,8 @@ check_ipv6_addr() {
 }
 
 # Проверить что строка является валидной маской IPv6 (число 0-128)
+# Если валидная - возвращается 0, 
+# Иначе - возвращается 1
 check_ipv6_mask() {
     # local res=0
     debug "check_ipv6_mask BEGIN arg1: ${1} =========================="
@@ -1317,12 +1325,18 @@ wg_uninstall() {
 client_action() {
     debug "client_action BEGIN ============================"
     debug "client_action; args: $(echo "$@")"
+    local _file_wg="$(realpath -m "$(_join_path "${path_wg}" "${SERVER_WG_NIC}.conf")")"
+    debug "_file_wg: ${_file_wg}"
     case "$1" in
     'list')
         # прочитать клиентов в файле SERVER_WG_NIC.conf
-        local _file_wg="$(realpath -m "$(_join_path "${path_wg}" "${SERVER_WG_NIC}.conf")")"
         debug "${_file_wg}"
         NUMBER_OF_CLIENTS="$(grep -c -E "^### Client" "${_file_wg}")"
+        # if [ -z "${NUMBER_OF_CLIENTS}" ]; then
+        #     msg "В данной конфигурации ${_file_wg} клиентов 0:\n"
+        # else
+        #     msg "В данной конфигурации ${_file_wg} клиентов ${NUMBER_OF_CLIENTS}:\n"
+        # fi
         msg "В данной конфигурации ${_file_wg} клиентов ${NUMBER_OF_CLIENTS}:\n"
         if [ -z "${is_debug}" ] || [ "${is_debug}" = "0" ]; then
     	    msg "$(grep -E "^### Client" "${_file_wg}" | cut -d ' ' -f 3 --output-delimiter " === " | nl -s ') ' -w 2)"
@@ -1333,6 +1347,47 @@ client_action() {
     'del')
     ;;
     'add')
+        # INST_SERVER_PUB_NIC=eth0
+        # INST_SERVER_PUB_IP=192.168.15.167
+        # INST_SERVER_WG_NIC=wg2
+        # INST_SERVER_WG_IPV4=172.17.1.1/26
+        # INST_SERVER_WG_IPV6=fd00:ffff::1/80
+        # INST_SERVER_PORT=64092
+        # INST_SERVER_PRIV_KEY=
+        # INST_SERVER_PUB_KEY=
+        # INST_CLIENT_DNS_1=1.1.1.1
+        # INST_CLIENT_DNS_2=1.0.0.1
+        # INST_ALLOWED_IPS=0.0.0.0/0,::/0
+
+        # Проверить валидность IP адреса 
+        # И если тип адреса SERVER_PUB_IP есть IPv6, то добавить по краям []
+        if check_ipv6_addr "${SERVER_PUB_IP}"; then
+            if ! _startswith "${SERVER_PUB_IP}" "["; then
+                SERVER_PUB_IP="[${SERVER_PUB_IP}"
+            fi
+            if ! _endswith "${SERVER_PUB_IP}" "]"; then
+                SERVER_PUB_IP="${SERVER_PUB_IP}]"
+            fi
+            debug "Адрес для подключения к серверу ${SERVER_PUB_IP}"
+        elif check_ipv4_addr "${SERVER_PUB_IP}"; then
+            debug "Адрес для подключения к серверу ${SERVER_PUB_IP}"
+        else
+            err "Неверный адрес ${SERVER_PUB_IP} для подключения к серверу Wireguard"
+            exit 1
+        fi
+        # Найти в файле конфигурации сервера ListenPort и использовать значение как порт для подключения
+        # Иначе взять ${SERVER_PORT}
+        local _port="$(grep -E '^\s*ListenPort' "${_file_wg}" | sed -En 's/^\s*ListenPort\s*=\s*([0-9]*).*$/\1/p')"
+        debug "_port: ${_port}"
+        if [ -z "${_port}" ]; then
+            local _poprt="${SERVER_PORT}"
+        fi
+        debug "_port: ${_port}"
+        ENDPOINT="${SERVER_PUB_IP}:${_port}"
+        debug "ENDPOINT: ${ENDPOINT}"
+        # сформировать ключи клиента
+        # сформировать файлы конфигурации для клиента и сервера
+        # сформировать QR-код для клиента
     ;;
     esac
 
@@ -1456,11 +1511,12 @@ main() {
     # установятся они до инициализации аргументов
     debug "Инициализация...\n"
     # local r="$(check_os 2)"
-    if [ -z "${is_debug}" ] || [ "${is_debug}" = 0 ]; then
-        init_os > /dev/null 2>&1
-    else
-        init_os
-    fi
+    # TODO крмменты временно для ускорения отладки, в ПРОД убрать
+    # if [ -z "${is_debug}" ] || [ "${is_debug}" = 0 ]; then
+    #     init_os > /dev/null 2>&1
+    # else
+    #     init_os
+    # fi
     debug "Инициализация закончилась...\n"
 
     is_update_file_args="${is_update_file_args:=0}"
@@ -1635,6 +1691,31 @@ main() {
             # проверить наличие файла с конфигурацией для установки WG
             if check_file_exists 0 "${file_params}"; then
                 . "${file_params}"
+            fi
+            # заменить пременные аргументами командной строки
+            # SERVER_WG_NIC
+            if [ -n "${nic_name}" ]; then
+                SERVER_WG_NIC="${nic_name}"
+            fi
+            # WIREGUARD SERVER IPv4/MASK
+            if [ -n "${ipv4}" ]; then
+                local _ip_="$(get_ip_mask_4 "${ipv4}")"
+                SERVER_WG_IPV4="$(get_item_str "${_ip_}" "ip")"
+                SERVER_WG_IPV4_MASK="$(get_item_str "${_ip_}" "mask")"
+            fi
+            # WIREGUARD SERVER IPv6/MASK
+            if [ -n "${ipv6}" ]; then
+                local _ip_="$(get_ip_mask_6 "${ipv6}")"
+                SERVER_WG_IPV6="$(get_item_str "${_ip_}" "ip")"
+                SERVER_WG_IPV6_MASK="$(get_item_str "${_ip_}" "mask")"
+            fi
+            # Проверить на валидность
+            if [ -z "${SERVER_WG_IPV6}" ] || [ -z "${SERVER_WG_IPV6_MASK}" ]; then
+                err "Неверный IPv6 ${SERVER_WG_IPV6}/${SERVER_WG_IPV6_MASK}"
+                exit 1
+            elif [ -z "${SERVER_WG_IPV4}" ] || [ -z "${SERVER_WG_IPV4_MASK}" ]; then
+                err "Неверный IPv4 ${SERVER_WG_IPV4}/${SERVER_WG_IPV4_MASK}"
+                exit 1
             fi
             # Нормализировать action
             local _act="$(echo " ${ACTION_CLIENT} " | sed -rn "s/.*( $action ).*/\1/p" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
