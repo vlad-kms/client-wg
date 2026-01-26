@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 log=true
 
@@ -6,57 +6,80 @@ action=""
 act_i=""
 
 if [ -z "$1" ]; then
+  action='a'
+  action='d'
+elif [ -n "$(echo "$1" | sed -En 's/^(a(dd)?)$/\1/ip')" ]; then
+  action='a'
+else
+  action=''
+fi
+                
+if [ -z "$1" ] || [ -n "$(echo "$1" | sed -En 's/^(a(dd)?)$/\1/ip')" ]; then
   action="-A"
   act_i="-I"
   is_add=true
   #action=""
-else
-  if [[ "$1" == "a" ]] || [[ "$1" == "A" ]]; then
-	action="-A"
-	act_i="-I"
-  is_add=true
-	echo "1. $1=a"
-  elif [[ "$1" == "d" ]] || [[ "$1" == "D" ]]; then
+#elif [ -n "$(echo "$1" | sed -En 's/^(a(dd)?)$/\1/ip')" ]; then
+#	action="-A"
+#	act_i="-I"
+# is_add=true
+#	# echo "1. $1=a"
+elif [ -n "$(echo "$1" | sed -En 's/^([d](el|elete)?)$/\1/ip')" ]; then
 	action="-D"
 	act_i="-D"
   is_add=false
-	echo "2. $1=d"
-  else
+	# echo "2. $1=d"
+else
 	action=""
-	echo "3. $1="
-  fi
+ #"3. $1="
 fi
 
-ssh_port=22
+wireguard_port="${SERVER_PORT}"
+wan="${SERVER_PUB_NIC}"
+wan_ip="${SERVER_PUB_IP}"
+lan="${SERVER_WG_NIC}"
+lan_ip="${SERVER_WG_IPV4}/${SERVER_WG_IPV4_MASK}"
+lan_ip6="${SERVER_WG_IPV6}/${SERVER_WG_IPV6_MASK}"
 
-wireguard_port=32124
-wireguard_proto=udp
+ssh_port="${SSH_PORT}"
+wireguard_proto="${WG_PROTO}"
+lan_net="${WG_NET}"
+lan_net6="${WG_NET6}"
 
-wan="ens3"
-wan_ip="45.155.205.25"
-lan="wg0"
-lan_ip="10.16.19.1"
-lan_net='10.16.19.0/24'
 vpn="${lan}"
 vpn_ip="${lan_ip}"
 vpn_net="${lan_net}"
+vpn_net6="${lan_net6}"
 
 inet_trust='cl.vpn.mrovo.ru,vi.vpn.mrovo.ru'
 vpn_trust="10.16.19.2,10.16.19.3,10.16.19.4,10.16.19.5,10.16.19.6,10.16.19.7,10.16.19.254,192.168.15.0/24,192.168.16.0/24"
 #vpn_oip="10.16.18.100,10.16.18.101,10.16.18.102,10.16.18.103"
 addr_home="192.168.15.0/24,192.168.16.0/24,192.168.22.0/24,192.168.25.0/24,192.168.26.0/24"
 
-if [ "$log" == "true" ]; then
+if [ "$log" = "true" ]; then
   echo "log: ${log}"
   echo "is_add: ${is_add}"
   echo "====================================="
-  echo "wan: ${wan}"
-  echo "wan_ip: ${wan_ip}"
-  echo "lan: ${lan}"
-  echo "lan_ip: ${lan_ip}"
-  echo "vpn: ${vpn}"
-  echo "vpn_ip: ${lan_ip}"
-  echo "action ${action}"
+  echo "wan_____: ${wan}"
+  echo "wan_ip__: ${wan_ip}"
+  echo "lan_____: ${lan}"
+  echo "lan_ip__: ${lan_ip}"
+  echo "lan_net_: ${WG_NET}"
+  echo "lan_ip6_: ${SERVER_WG_IPV6}/${SERVER_WG_IPV6_MASK}"
+  echo "lan_net6: ${WG_NET6}"
+  echo "vpn_____: ${vpn}"
+  echo "vpn_ip__: ${vpn_ip}"
+  echo "vpn_net_: ${vpn_net}"
+  echo "vpn_net6: ${vpn_net6}"
+  echo "action__: ${action}"
+  echo "act_i___: ${act_i}"
+  echo "ssh_port: ${SSH_PORT}"
+  echo "wireguard_port : ${SERVER_PORT}"
+  echo "wireguard_proto: ${WG_PROTO}"
+  echo "inet_trust__: ${inet_trust}"
+  echo "vpn_trust___: ${vpn_trust}"
+  # echo "vpn_oip_____: ${vpn_oip}"
+  echo "addr_home___: ${addr_home}"
 fi
 
 if [ -z "$action" ]; then exit 1; fi
