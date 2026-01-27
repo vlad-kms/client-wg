@@ -1572,13 +1572,15 @@ main() {
     # установятся они до инициализации аргументов
     debug "Инициализация...\n"
     # local r="$(check_os 2)"
-    # TODO комменты временно для ускорения отладки, в ПРОД убрать
-    # if [ -z "${is_debug}" ] || [ "${is_debug}" = 0 ]; then
-    #     init_os > /dev/null 2>&1
-    # else
-    #     init_os
-    # fi
-    # TODO комменты временно для ускорения отладки, в ПРОД убрать
+    # TODO проверка $cmd временно для ускорения отладки, в ПРОД убрать
+    if [ "${cmd}" != "client" ]; then
+        if [ -z "${is_debug}" ] || [ "${is_debug}" = 0 ]; then
+            init_os > /dev/null 2>&1
+        else
+            init_os
+        fi
+    fi
+    # TODO проверка $cmd временно для ускорения отладки, в ПРОД убрать
     debug "Инициализация закончилась...\n"
 
     is_update_file_args="${is_update_file_args:=0}"
