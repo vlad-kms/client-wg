@@ -1292,6 +1292,18 @@ wg_install() {
 		exec_cmd systemctl start "wg-quick@${SERVER_WG_NIC}"
 		exec_cmd systemctl enable "wg-quick@${SERVER_WG_NIC}"
     fi
+    # файл hand_params, дополнительные параметры
+    printf "SSH_PORT=22\n" > "${file_hand_params}"
+    printf "WG_PROTO=udp\n" >> "${file_hand_params}"
+    local _net="$(ipcalc "${SERVER_WG_IPV4}/${SERVER_WG_IPV4_MASK}" | grep -e "^Network:" | sed -En "s/^Network:\s*([^ \t]*).*$/\1/p")"
+    printf "WG_NET=${_net}\n" >> "${file_hand_params}"
+    if [ "${OS}" = 'alpine' ]; then
+        local _net="$(ipcalc "${SERVER_WG_IPV6}/${SERVER_WG_IPV6_MASK}" | grep -e "^Network:" | sed -En "s/^Network:\s*([^ \t]*).*$/\1/p")"
+        printf "WG_NET6=${_net}\n" >> "${file_hand_params}"
+    elif [ "${OS}" = 'debian' ] || [ "${OS}" = 'ubuntu' ]; then
+        local _net="$(ipcalc "${SERVER_WG_IPV6}/${SERVER_WG_IPV6_MASK}" | grep -e "^Prefix:" | sed -En "s/^Prefix:\s*([^ \t]*).*$/\1/p")"
+        printf "WG_NET6=${_net}\n" >> "${file_hand_params}"
+    fi
     # работа с настройками для iptables
     if which iptables > /dev/null 2>&1; then
         inst_iptables "${file_rules_firewall}"

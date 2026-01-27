@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 log=true
 
@@ -10,33 +10,33 @@ if [ -z "$1" ]; then
   act_i="-I"
   is_add=true
   #action=""
-else
-  if [[ "$1" == "a" ]] || [[ "$1" == "A" ]]; then
+elif [ "$1" = "a" ] || [ "$1" = "A" ]; then
 	action="-A"
 	act_i="-I"
   is_add=true
-	echo "1. $1=a"
-  elif [[ "$1" == "d" ]] || [[ "$1" == "D" ]]; then
+	# echo "1. $1=a"
+elif [ "$1" = "d" ] || [ "$1" = "D" ]; then
 	action="-D"
 	act_i="-D"
   is_add=false
-	echo "2. $1=d"
-  else
+	# echo "2. $1=d"
+else
 	action=""
-	echo "3. $1="
-  fi
+ "3. $1="
 fi
 
-ssh_port=22
+wireguard_port="${SERVER_PORT}"
+wan="${SERVER_PUB_NIC}"
+wan_ip="${SERVER_PUB_IP}"
+lan="${SERVER_WG_NIC}"
+lan_ip="${SERVER_WG_IPV4}/${SERVER_WG_IPV4_MASK}"
+lan_ip6="${SERVER_WG_IPV6}/${SERVER_WG_IPV6_MASK}"
 
-wireguard_port=32124
-wireguard_proto=udp
+ssh_port="${SSH_PORT}"
+wireguard_proto="${WG_PROTO}"
+lan_net="${WG_NET}"
+lan_net6="${WG_NET6}"
 
-wan="ens3"
-wan_ip="45.155.205.25"
-lan="wg0"
-lan_ip="10.16.19.1"
-lan_net='10.16.19.0/24'
 vpn="${lan}"
 vpn_ip="${lan_ip}"
 vpn_net="${lan_net}"
