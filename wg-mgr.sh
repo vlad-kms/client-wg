@@ -161,7 +161,9 @@ exec_cmd() {
         if [ "$is_debug" = "0" ]; then
         	"$@" > /dev/null 2>&1
         else
-        	"$@"
+            printf "${GREEN}" >&2
+        	"$@" >&2
+            printf "${NC}" >&2
         fi
     else
         local ttt="$@"
@@ -173,6 +175,7 @@ exec_cmd_with_result() {
     local res=''
     if [ -z "${dry_run}" ] || [ "${dry_run}" -eq "0" ]; then
         res=$("$@")
+        debug "${res}"
     else
         local ttt="$@"
         printf "${PURPLE}Выполнить команду: '${ttt}'${NC}\n" 1>&2
@@ -210,7 +213,9 @@ install_packages() {
                 if [ -z "${is_debug}" ] || [ "${is_debug}" -eq "0" ]; then
                     ${_cmd_} > /dev/null
                 else
+                    printf "${GREEN}"
                     ${_cmd_} >&2
+                    printf "${NC}"
                 fi
                 local _res_=$?
                 debug "_res_: $_res_"
@@ -397,7 +402,9 @@ init_os() {
         fi
         install_packages "${list_packet}"
     elif [ "${_os_}" = "debian" ] || [ "${_os_}" = "ubuntu" ]; then
+        printf "${GREEN}"
         exec_cmd apt-get update
+        printf "${NC}"
     fi
     debug "init_os END ================================="
 }
@@ -1166,7 +1173,7 @@ wg_install() {
 		# install_packages apk add wireguard-tools iptables libqrencode-tools
 		install_packages wireguard-tools iptables libqrencode-tools ipcalc
         # TODO Разобраться с DNS в Alpine linux. Пока в Alpine чистый список DNS для интерфейса сервера
-        INST_CLIENT_DNS=
+        # INST_CLIENT_DNS=
     fi
 	# Проверить что WireGuard установлен
     is_wg_install=$(command -v wg)
@@ -1241,8 +1248,8 @@ wg_install() {
     debug "ALLOWED_IPS: ${ALLOWED_IPS}"
 
 	# Настройка sysctl Включить форвардинг на сервере
-    local c1="$(exec_cmd echo "net.ipv4.ip_forward = 1")"
-    local c2="$(exec_cmd echo "net.ipv6.conf.all.forwarding = 1")"
+    local c1="$(exec_cmd_with_result echo "net.ipv4.ip_forward = 1")"
+    local c2="$(exec_cmd_with_result echo "net.ipv6.conf.all.forwarding = 1")"
     if [ -n "${c1}" ] && ([ -z "${dry_run}" ] || [ "${dry_run}" = "0" ]); then
         printf "${c1}\n" > "${file_sysctl}"
     fi
@@ -1274,9 +1281,9 @@ wg_install() {
     printf "Address = ${_addr_wg_serv}\n"  >> "${FILE_CONF_WG}"
     printf "ListenPort = ${SERVER_PORT}\n" >> "${FILE_CONF_WG}"
     printf "PrivateKey = ${SERVER_PRIV_KEY}\n" >> "${FILE_CONF_WG}"
-    if [ -n "${CLIENT_DNS}" ]; then
-        printf "DNS = ${CLIENT_DNS}\n" >> "${FILE_CONF_WG}"
-    fi
+    # if [ -n "${CLIENT_DNS}" ]; then
+    #     printf "DNS = ${CLIENT_DNS}\n" >> "${FILE_CONF_WG}"
+    # fi
     # права на файл конфигурации
     chmod 0700 "${path_wg}"
     chmod 0600 "${FILE_CONF_WG}"
@@ -1433,22 +1440,22 @@ client_action() {
         debug "_allowed_ips_srv: ${_ipv4_client}"
         # конфигурация для клиента
         # [Interface]
-        # PrivateKey = qLBFGfhwxVy+vS+aedmzifvVfcSKrDJDXkl4GS9hdHs=
+        # PrivateKey = 
         # ! Address = 10.16.16.4/24
         # #DNS = 9.9.9.9, 149.112.112.112
         # DNS = 192.168.15.3
         #
         # [Peer]
-        # PublicKey = 6MBqWqK4NoIAME2h7DeVGeB2zN+kheezYi+Bz4alBhc=
-        # PresharedKey = jVTf8TFGeDwrW4wflKGpp8S1jFx9Du8MN8Yi6atNYf0=
+        # PublicKey = 
+        # PresharedKey = 
         # ! Endpoint = 77.105.139.99:51820
         # ! AllowedIPs = 0.0.0.0/0, ::0/0
         
         # конфигурация для сервера
         # ### Client "ASUS_home" 1.2.3 ###
         # [Peer]
-        # PublicKey = /cRn4mKng124x2/v5c61cIiSj9HNSPJpUcnCa1zkbCQ=
-        # PresharedKey = jVTf8TFGeDwrW4wflKGpp8S1jFx9Du8MN8Yi6atNYf0=
+        # PublicKey = 
+        # PresharedKey = 
         # ! AllowedIPs = 10.16.16.4/32
         # ### end ASUS home ###
 
