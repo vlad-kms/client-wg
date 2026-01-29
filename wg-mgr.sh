@@ -17,8 +17,9 @@ ACTION_CLIENT='a add new d del delete list l'
 ACTION_CLIENT_ADD='a add new'
 ACTION_CLIENT_DEL='d del delete'
 ACTION_CLIENT_LIST='l list'
-DELIMITER_TITLE_CLIENT='[= ]*'
+DELIMITER_TITLE_CLIENT='[= ]+'
 BEGIN_TITLE_CLIENT="###${DELIMITER_TITLE_CLIENT}Client${DELIMITER_TITLE_CLIENT}"
+END_TITLE_CLIENT="###${DELIMITER_TITLE_CLIENT}END${DELIMITER_TITLE_CLIENT}Client${DELIMITER_TITLE_CLIENT}"
 
 VARS_FOR_INSTALL="./vars4install.conf"
 VARS_PARAMS="./params.conf"
@@ -1342,6 +1343,7 @@ wg_uninstall() {
 # $1 - имя клиента для поиска
 search_client() {
     local _btc="${BEGIN_TITLE_CLIENT}"
+    local _etc="${END_TITLE_CLIENT}"
     local _dtc="${DELIMITER_TITLE_CLIENT}"
     if [ -n "$1" ]; then
         if grep -E "^${_btc}${1}${_dtc}" "${_file_wg}" > /dev/null; then
@@ -1359,17 +1361,25 @@ search_client() {
 # $2 имя файла настроек сервера ...wg<N>.conf
 delete_client_config_serv() {
     local _btc="${BEGIN_TITLE_CLIENT}"
+    local _etc="${END_TITLE_CLIENT}"
     local _dtc="${DELIMITER_TITLE_CLIENT}"
     if [ -n "$1" ]; then
         local clnt_cfg="$(_join_path "${path_out}" "${_name}-client.conf")"
         local serv_cfg="$(_join_path "${path_out}" "${_name}-server.conf")"
         local clnt_qrc="$(_join_path "${path_out}" "${_name}-qrcode.png")"
-        rm "${clnt_cfg}" > /dev/null 2>&1
-        rm "${serv_cfg}" > /dev/null 2>&1
-        rm "${clnt_qrc}" > /dev/null 2>&1
+        exec_cmd rm "${clnt_cfg}"
+        exec_cmd rm "${serv_cfg}"
+        exec_cmd rm "${clnt_qrc}"
+        # rm "${clnt_cfg}" > /dev/null 2>&1
+        # rm "${serv_cfg}" > /dev/null 2>&1
+        # rm "${clnt_qrc}" > /dev/null 2>&1
         # удалить в файле конфигурации сервера инфу о клиенте
         if [ -n "$2" ]; then
-            sed -i -En "/^${_btc}$1${_dtc}/,/^${_btc}$1${_dtc}/!p" "${2}"
+            # exec_cmd sed -i -En "/^${_btc}$1${_dtc}/,/^${_etc}$1${_dtc}/!p" "${2}"
+            if grep -E "^${_etc}$1${_dtc}" "${_file_wg}" > /dev/null; then
+                exec_cmd sed -i -En "/^${_btc}$1${_dtc}/,/^${_etc}$1${_dtc}/!p" "${2}"
+            fi
+            # exec_cmd sed -i -En "/^${_btc}$1${_dtc}/,/^${_etc}$1${_dtc}/!p" "${2}"
         fi
     fi
 }
@@ -1386,6 +1396,7 @@ client_action() {
     local _name="$2"
     debug "_name: ${_name}"
     local _btc="${BEGIN_TITLE_CLIENT}"
+    local _etc="${END_TITLE_CLIENT}"
     local _dtc="${DELIMITER_TITLE_CLIENT}"
     local _file_wg="$(realpath -m "$(_join_path "${path_wg}" "${SERVER_WG_NIC}.conf")")"
     debug "_file_wg: ${_file_wg}"
@@ -1400,8 +1411,20 @@ client_action() {
         msg "$(grep -E "^${_btc}" "${_file_wg}" | awk -F "${_dtc}" '{print $3"; "$4";"}' | nl -s ') ' -w 2)"
     ;;
     'del')
+        # Проверить что передано имя клиента
+        if [ -z "${_name}" ]; then
+            err "Не указано обязательное имя клиента для удаления"
+            exit 1
+        fi
+        delete_client_config_serv "${_name}" "${_file_wg}"
+        client_action "list" "${_name}"
     ;;
     'add')
+        # Проверить что передано имя клиента
+        if [ -z "${_name}" ]; then
+            err "Не указано обязательное имя клиента для его создания"
+            exit 1
+        fi
         # Подготовить адрес:порт для подключения клиента Wireguard
         # И если тип адреса SERVER_PUB_IP есть IPv6, то добавить по краям []
         if check_ipv6_addr "${SERVER_PUB_IP}"; then
@@ -1435,20 +1458,22 @@ client_action() {
         fi
         debug "_allowed_ips_client: ${_allowed_ips_client}"
         # IPv4 клиента
+        # Проверить что передали ipv4 и ipv6, если указано использовать ipv6 (есть аргумент --use-ipv6)
         if [ -z "${ipv4}" ]; then
-            local _ipv4_client="${INST_SERVER_WG_IPV4}/32"
-        else
-            local _ipv4_client="$(get_item_str "$(get_ip_mask_4 "${ipv4}")" "ip")/32"
+            err "Для сервера Wireguqrd должен быть обязательно указан IPv4"
+            exit 1
         fi
-        # IPv6 клиента
-        if [ -n "${use_ipv6}" ] && [ "${use_ipv6}" != 0 ]; then
-            if [ -z "${ipv6}" ]; then
-                local _ipv6_client="${INST_SERVER_WG_IPV6}/128"
-            else
-                local _ipv6_client="${ipv6}"
-                local _ipv6_client="$(get_item_str "$(get_ip_mask_6 "${ipv6}")" "ip")/128"
+        # WIREGUARD SERVER IPv6/MASK
+        if [ -z "${ipv6}" ]; then
+            if [ -n "${use_ipv6}" ] && [ "${use_ipv6}" != "0" ]; then
+                err "Т.к. --use-ipv6 указан в аргументах запуска, то адрес ipv6 обязателен. А он не указан"
+                exit 1
             fi
         fi
+        # адрес клиента с маской 32
+        local _ipv4_client="$(get_item_str "$(get_ip_mask_4 "${ipv4}")" "ip")/32"
+        # IPv6 клиента
+        local _ipv6_client="$(get_item_str "$(get_ip_mask_6 "${ipv6}")" "ip")/128"
         debug "_ipv4_client: ${_ipv4_client}"
         debug "_ipv6_client: ${_ipv6_client}"
         local _address="${_ipv4_client}"
@@ -1518,22 +1543,36 @@ client_action() {
         # файл конфигурации для сервера в $path_out
         local _ip_desc="$( if [ -n ${_ipv4_client} ]; then echo ${_ipv4_client}; else echo ${_ipv6_client}; fi )"
         local title_client="### Client = ${_name} = ${_ip_desc}"
+        local footer_client="### END Client = ${_name} = ${_ip_desc}"
         debug "title_client: ${title_client}"
+        debug "footer_client: ${footer_client}"
         printf "${title_client}\n"                      >  "${serv_cfg}"
         printf "[Peer]\n"                               >> "${serv_cfg}"
         printf "PublicKey = ${_client_key_pub}\n"       >> "${serv_cfg}"
         printf "PresharedKey = ${_client_key_pkey}\n"   >> "${serv_cfg}"
         printf "AllowedIPs = ${_allowed_ips_srv}\n"     >> "${serv_cfg}"
-        printf "${title_client}\n"                      >> "${serv_cfg}"
+        printf "${footer_client}\n"                     >> "${serv_cfg}"
         # теперь все тоже самое записать в файл конфигурации для сервера $_file_wg
+        local l1="$(exec_cmd_with_result echo "${title_client}")"
+        local l2="$(exec_cmd_with_result echo "[Peer]")"
+        local l3="$(exec_cmd_with_result echo "PublicKey = ${_client_key_pub}")"
+        local l4="$(exec_cmd_with_result echo "PresharedKey = ${_client_key_pkey}")"
+        local l5="$(exec_cmd_with_result echo "AllowedIPs = ${_allowed_ips_srv}")"
+        local l6="$(exec_cmd_with_result echo "${footer_client}")"
         # printf "\n"                                     >> "${_file_wg}"
-        printf "${title_client}\n"                      >> "${_file_wg}"
-        printf "[Peer]\n"                               >> "${_file_wg}"
-        printf "PublicKey = ${_client_key_pub}\n"       >> "${_file_wg}"
-        printf "PresharedKey = ${_client_key_pkey}\n"   >> "${_file_wg}"
-        printf "AllowedIPs = ${_allowed_ips_srv}\n"     >> "${_file_wg}"
-        printf "${title_client}\n"                      >> "${_file_wg}"
-        printf "\n"                                     >> "${_file_wg}"
+        if [ -z "${dry_run}" ] || [ "${dry_run}" = "0" ]; then
+            printf "${l1}\n"    >> "${_file_wg}"
+            printf "${l2}\n"    >> "${_file_wg}"
+            printf "${l3}\n"    >> "${_file_wg}"
+            printf "${l4}\n"    >> "${_file_wg}"
+            printf "${l5}\n"    >> "${_file_wg}"
+            printf "${l6}\n"    >> "${_file_wg}"
+        fi
+        # printf "PublicKey = ${_client_key_pub}\n"       >> "${_file_wg}"
+        # printf "PresharedKey = ${_client_key_pkey}\n"   >> "${_file_wg}"
+        # printf "AllowedIPs = ${_allowed_ips_srv}\n"     >> "${_file_wg}"
+        # printf "${footer_client}\n"                     >> "${_file_wg}"
+        # printf "\n"                                     >> "${_file_wg}"
         # сформировать QR-код для клиента
         if command -v qrencode >/dev/null; then
             debug "Формируем QR-код для клиента в файл ${clnt_qrc}"
@@ -1857,28 +1896,28 @@ main() {
                 local _ip_="$(get_ip_mask_4 "${ipv4}")"
                 SERVER_WG_IPV4="$(get_item_str "${_ip_}" "ip")"
                 SERVER_WG_IPV4_MASK="$(get_item_str "${_ip_}" "mask")"
-            else
-                err "Для сервера Wireguqrd должен быть обязательно указан IPv4"
-                exit 1
+            # else
+            #     err "Для сервера Wireguqrd должен быть обязательно указан IPv4"
+            #     exit 1
             fi
             # WIREGUARD SERVER IPv6/MASK
             if [ -n "${ipv6}" ]; then
                 local _ip_="$(get_ip_mask_6 "${ipv6}")"
                 SERVER_WG_IPV6="$(get_item_str "${_ip_}" "ip")"
                 SERVER_WG_IPV6_MASK="$(get_item_str "${_ip_}" "mask")"
-            else
-                if [ -n "${use_ipv6}" ] && [ "${use_ipv6}" != "0" ]; then
-                    err "Т.к. --use-ipv6 указан в аргументах запуска, то адрес ipv6 обязателен. А он не указан"
-                    exit 1
-                fi
+            # else
+            #     if [ -n "${use_ipv6}" ] && [ "${use_ipv6}" != "0" ]; then
+            #         err "Т.к. --use-ipv6 указан в аргументах запуска, то адрес ipv6 обязателен. А он не указан"
+            #         exit 1
+            #     fi
             fi
             # Проверить на валидность
-            if [ -z "${SERVER_WG_IPV6}" ] || [ -z "${SERVER_WG_IPV6_MASK}" ]; then
-                if [ -n "${use_ipv6}" ] && [ "${use_ipv6}" != "0" ]; then
-                    err "Неверный IPv6 ${SERVER_WG_IPV6}/${SERVER_WG_IPV6_MASK}"
-                    exit 1
-                fi
-            fi
+            # if [ -z "${SERVER_WG_IPV6}" ] || [ -z "${SERVER_WG_IPV6_MASK}" ]; then
+            #     if [ -n "${use_ipv6}" ] && [ "${use_ipv6}" != "0" ]; then
+            #         err "Неверный IPv6 ${SERVER_WG_IPV6}/${SERVER_WG_IPV6_MASK}"
+            #         exit 1
+            #     fi
+            # fi
             # if [ -z "${SERVER_WG_IPV4}" ] || [ -z "${SERVER_WG_IPV4_MASK}" ]; then
             #     err "Неверный IPv4 ${SERVER_WG_IPV4}/${SERVER_WG_IPV4_MASK}"
             #     exit 1
