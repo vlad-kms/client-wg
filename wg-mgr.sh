@@ -1535,9 +1535,9 @@ client_action() {
         printf "${title_client}\n"                      >> "${_file_wg}"
         printf "\n"                                     >> "${_file_wg}"
         # сформировать QR-код для клиента
-        if command -v qrencode &>/dev/null; then
+        if command -v qrencode >/dev/null; then
             debug "Формируем QR-код для клиента в файл ${clnt_qrc}"
-            qrencode -t ansiutf8 -l L -o "${clnt_qrc}" <"${clnt_cfg}"
+            qrencode -t ansiutf8 -l L -o "${clnt_qrc}" < "${clnt_cfg}"
         fi
 
     ;;
@@ -1863,7 +1863,7 @@ main() {
             fi
             # Проверить на валидность
             if [ -z "${SERVER_WG_IPV6}" ] || [ -z "${SERVER_WG_IPV6_MASK}" ]; then
-                if [ -n "${use_ipv6}" && "${use_ipv6}" != "0" ]; then
+                if [ -n "${use_ipv6}" ] && [ "${use_ipv6}" != "0" ]; then
                     err "Неверный IPv6 ${SERVER_WG_IPV6}/${SERVER_WG_IPV6_MASK}"
                     exit 1
                 fi
