@@ -160,16 +160,16 @@ is_root() {
 exec_cmd() {
     if [ -z "${dry_run}" ] || [ "${dry_run}" -eq "0" ]; then
         if [ "$is_debug" = "0" ]; then
-        	"$@" > /dev/null 2>&1
+            "$@" > /dev/null 2>&1
         else
             printf "${GREEN}" >&2
-        	"$@" >&2
+            "$@" >&2
             printf "${NC}" >&2
         fi
     else
         local ttt="$@"
         printf "${PURPLE}Выполнить команду: '${ttt}'${NC}\n" 1>&2
-	fi
+    fi
 }
 
 exec_cmd_with_result() {
@@ -180,7 +180,7 @@ exec_cmd_with_result() {
     else
         local ttt="$@"
         printf "${PURPLE}Выполнить команду: '${ttt}'${NC}\n" 1>&2
-	fi
+    fi
     printf "${res}"
 }
 
@@ -296,40 +296,40 @@ check_os() {
         local is_out_err=0
     fi
     local res_exit=0
-	. "${OS_RELEASE}"
-	OS="${ID}"
-	if [ "${OS}" = "debian" ] || [ "${OS}" = "raspbian" ]; then
-		if [ "${VERSION_ID}" -lt "10" ]; then
+    . "${OS_RELEASE}"
+    OS="${ID}"
+    if [ "${OS}" = "debian" ] || [ "${OS}" = "raspbian" ]; then
+        if [ "${VERSION_ID}" -lt "10" ]; then
             local _msg_="Ваша версия Debian (${VERSION_ID}) не поддерживается. Используйте Debian 10 Buster или старше"
             if [ "${is_out_err}" -eq "0" ]; then
-			    err "${_msg_}"
+                err "${_msg_}"
             elif [ "${is_out_err}" -eq "1" ]; then
-			    msg "${_msg_}"
+                msg "${_msg_}"
             fi
-			# exit 1
+            # exit 1
             local res_exit=1
-		fi
-		OS=debian # overwrite if raspbian
-	elif [ "${OS}" = "ubuntu" ]; then
-		RELEASE_YEAR=$(echo "${VERSION_ID}" | cut -d'.' -f1)
-		if [ "${RELEASE_YEAR}" -lt "18" ]; then
-			local _msg_="Ваша версия Ubuntu (${VERSION_ID}) не поддерживается. Используйте Ubuntu 18.04 or старше"
+        fi
+        OS=debian # overwrite if raspbian
+    elif [ "${OS}" = "ubuntu" ]; then
+        RELEASE_YEAR=$(echo "${VERSION_ID}" | cut -d'.' -f1)
+        if [ "${RELEASE_YEAR}" -lt "18" ]; then
+            local _msg_="Ваша версия Ubuntu (${VERSION_ID}) не поддерживается. Используйте Ubuntu 18.04 or старше"
             if [ "${is_out_err}" -eq "0" ]; then
-			    err "${_msg_}"
+                err "${_msg_}"
             elif [ "${is_out_err}" -eq "1" ]; then
-			    msg "${_msg_}"
+                msg "${_msg_}"
             fi
-			# exit 1
+            # exit 1
             local res_exit=1
-		fi
-	# elif [ -e '/etc/alpine-release' ]; then
+        fi
+    # elif [ -e '/etc/alpine-release' ]; then
     elif [ "${OS}" == "alpine" ]; then
-		# OS=alpine
+        # OS=alpine
         # установить требуемые пакеты
         # проверить что установлен coreutils, и если нет, то добавть в список устанавливаемых пакетов
         debug "OS: alpine"
-	else
-		local _msg_="Этот установщик на данный момент поддерживает только Debian, Ubuntu и Alpine"
+    else
+        local _msg_="Этот установщик на данный момент поддерживает только Debian, Ubuntu и Alpine"
         if [ "${is_out_err}" -eq "0" ]; then
             err "${_msg_}"
         elif [ "${is_out_err}" -eq "1" ]; then
@@ -337,7 +337,7 @@ check_os() {
         fi
         # exit 1
         local res_exit=1
-	fi
+    fi
     debug "OS: ${OS}"
     debug "VERSION_ID: ${VERSION_ID}"
     debug "res_exit: ${res_exit}"
@@ -383,7 +383,7 @@ init_os() {
     OS="${_os_}"
     VERSION_ID="$(get_item_str  "${os_data}" "version_id")"
     if [ "${_os_}" = "alpine" ]; then
-		# OS=alpine
+        # OS=alpine
         exec_cmd apk update
         # установить требуемые пакеты
         # проверить что установлен coreutils, и если нет, то добавть в список устанавливаемых пакетов
@@ -412,24 +412,24 @@ init_os() {
 
 # Проверить что допустимые виртуалки
 check_virt() {
-	# if which virt-what &>/dev/null; then
+    # if which virt-what &>/dev/null; then
     debug "check_virt BEGIN ==================="
-	if command -v virt-what >/dev/null; then
+    if command -v virt-what >/dev/null; then
         VIRT=" $(virt-what | sed ':a;N;$!ba;s/\n/ /g') "
-  	else
+    else
         VIRT=" $(systemd-detect-virt | sed ':a;N;$!ba;s/\n/ /g') "
-	fi
+    fi
     # VIRT=" kvm openvz "
     debug "VIRTUAL SYSTEM: =${VIRT}="
     local v_openvz="$(_trim "$(echo "${VIRT}" | sed -En 's/.*( openvz ).*/\1/p')")" #| sed -n 's/^[[:space:]]*//; s/[[:space:]]*$//p')"
     debug "v_openvz: =${v_openvz}="
-	if [ -n "${v_openvz}" ]; then
-		err "OpenVZ не поддерживается"
-		exit 1
-	fi
+    if [ -n "${v_openvz}" ]; then
+        err "OpenVZ не поддерживается"
+        exit 1
+    fi
     local v_lxc="$(_trim "$(echo "${VIRT}" | sed -En 's/.*( lxc ).*/\1/p')")" # | sed -n 's/^[[:space:]]*//; s/[[:space:]]*$//p')"
     debug "v_lxc: =${v_lxc}="
-	if [ -n "${v_lxc}" ]; then
+    if [ -n "${v_lxc}" ]; then
         if [ -z "${allow_lxc}" ] || [ "${allow_lxc}" -eq "0" ]; then
             err "LXC не поддерживается."
             err "Технически WireGuard может работать в контейнере LXC,"
@@ -444,7 +444,7 @@ check_virt() {
             msg "Включен режим игнорирования этой ситуации и работа продолжится на Ваш страх и риск."
             msg "Чтобы выключить данный режим НЕ используйте аргумент --allow-lxc (-x)."
         fi
-	fi
+    fi
     debug "check_virt END ====================="
 }
 
@@ -915,7 +915,7 @@ check_get_ip_mask_6() {
 wg_prepare_file_config() {
     debug "wg_prepare_file_config BEGIN ========================"
     # публичный интерфейс сервера
-	INST_SERVER_PUB_NIC=$(ip route | grep default | sed -E 's/.*\sdev\s*([a-zA-Z0-9]*)\s.*/\1/')
+    INST_SERVER_PUB_NIC=$(ip route | grep default | sed -E 's/.*\sdev\s*([a-zA-Z0-9]*)\s.*/\1/')
     # INST_SERVER_PUB_NIC=$(_question "Внешний интерфейс" "${INST_SERVER_PUB_NIC}")
     printf "INST_SERVER_PUB_NIC=${INST_SERVER_PUB_NIC}\n" > "${file_config}"
     # публичный адрес сервера
@@ -944,7 +944,7 @@ wg_prepare_file_config() {
     # printf "INST_SERVER_WG_IPV6=${_ip_}\n" >> "${file_config}"
     printf "INST_SERVER_WG_IPV6=${INST_SERVER_WG_IPV6:=${DEF_SERVER_WG_IPV6}}/${INST_SERVER_WG_IPV6_MASK:=${DEF_SERVER_WG_IPV6_MASK}}\n" >> "${file_config}"
     # WIREGUARD SERVER PORT
-	RANDOM_PORT=$(shuf -i49152-65535 -n1)
+    RANDOM_PORT=$(shuf -i49152-65535 -n1)
     printf "INST_SERVER_PORT=${RANDOM_PORT}\n" >> "${file_config}"
     # PRIVATE and PUBLIC KEY SERVER
     if command -v wg > /dev/null 2>&1; then
@@ -1047,7 +1047,7 @@ wg_install() {
     if [ -z "${INST_SERVER_PUB_NIC}" ]; then
         # grep default | sed -E 's/.*\sdev\s*([^\s]*).*/\1/'
         # sed -E 's/.*\sdev\s*([a-zA-Z0-9]*)\s.*/\1/'
-	    INST_SERVER_PUB_NIC=$(ip route | grep default | sed -E 's/.*\sdev\s*([a-zA-Z0-9]*)\s.*/\1/')
+        INST_SERVER_PUB_NIC=$(ip route | grep default | sed -E 's/.*\sdev\s*([a-zA-Z0-9]*)\s.*/\1/')
         INST_SERVER_PUB_NIC=$(_question "Внешний интерфейс" "${INST_SERVER_PUB_NIC}")
     fi
     if [ -z "${INST_SERVER_PUB_NIC}" ]
@@ -1064,7 +1064,7 @@ wg_install() {
     # 2. Если пустой вывод, то нет IPv4. Поэтому берем IPv6 вывод из ip -6 addr show
     # 3. _ip_dev_pub_ - это адрес IPv4 или IPv6
     if [ -z "${INST_SERVER_PUB_IP}" ]; then
-    	local _ip_dev_pub_=$(ip -4 addr show "${INST_SERVER_PUB_NIC}" | sed -nE 's/^.*\sinet\s([^/]*)\/.*\sscope global.*$/\1/p' | awk '{print $1}' | head -1)
+        local _ip_dev_pub_=$(ip -4 addr show "${INST_SERVER_PUB_NIC}" | sed -nE 's/^.*\sinet\s([^/]*)\/.*\sscope global.*$/\1/p' | awk '{print $1}' | head -1)
         if [ -z "${_ip_dev_pub_}" ]; then
             local _ip_dev_pub_=$(ip -6 addr show "${INST_SERVER_PUB_NIC}" | sed -nE 's|^.*\sinet6\s([^/]*)/.*\sscope global.*$|\1|p' | awk '{print $1}' | head -1)
         fi
@@ -1169,14 +1169,14 @@ wg_install() {
         # install_packages apt-get install -y wireguard iptables systemd-resolved qrencode
         install_packages wireguard iptables systemd-resolved qrencode ipcalc
     elif [ "${OS}" = 'alpine' ]; then
-		# apk update > /dev/null 2>&1
-		# exec_cmd apk update
-		# install_packages apk add wireguard-tools iptables libqrencode-tools
-		install_packages wireguard-tools iptables libqrencode-tools ipcalc
+        # apk update > /dev/null 2>&1
+        # exec_cmd apk update
+        # install_packages apk add wireguard-tools iptables libqrencode-tools
+        install_packages wireguard-tools iptables libqrencode-tools ipcalc
         # TODO Разобраться с DNS в Alpine linux. Пока в Alpine чистый список DNS для интерфейса сервера
         # INST_CLIENT_DNS=
     fi
-	# Проверить что WireGuard установлен
+    # Проверить что WireGuard установлен
     is_wg_install=$(command -v wg)
     # if ! command -v wg &>/dev/null; then
     if [ -z "${is_wg_install}" ]; then
@@ -1188,9 +1188,9 @@ wg_install() {
             err "В режиме dry-run программа продолжает работу."
         fi
     fi
-	# # Make sure the directory exists (this does not seem the be the case on fedora)
-	# mkdir /etc/wireguard >/dev/null 2>&1
-	# chmod 600 -R /etc/wireguard/
+    # # Make sure the directory exists (this does not seem the be the case on fedora)
+    # mkdir /etc/wireguard >/dev/null 2>&1
+    # chmod 600 -R /etc/wireguard/
     # Создать приватный и публичный ключи, если их нет
     if [ -z "${INST_SERVER_PRIV_KEY}" ]; then
         if [ -z "${is_wg_install}" ]; then
@@ -1221,19 +1221,19 @@ wg_install() {
         INST_SERVER_PUB_KEY=$(echo "${INST_SERVER_PRIV_KEY}" | wg pubkey 2>/dev/null)
     fi
 
-	# Сохранить параметры WireGuard
+    # Сохранить параметры WireGuard
     printf "SERVER_PUB_NIC=${INST_SERVER_PUB_NIC}\n" > "${file_params}"
-	printf "SERVER_PUB_IP=${INST_SERVER_PUB_IP}\n" >> "${file_params}"
-	printf "SERVER_WG_NIC=${INST_SERVER_WG_NIC}\n" >> "${file_params}"
-	printf "SERVER_WG_IPV4=${INST_SERVER_WG_IPV4}\n" >> "${file_params}"
-	printf "SERVER_WG_IPV4_MASK=${INST_SERVER_WG_IPV4_MASK}\n" >> "${file_params}"
-	printf "SERVER_WG_IPV6=${INST_SERVER_WG_IPV6}\n" >> "${file_params}"
-	printf "SERVER_WG_IPV6_MASK=${INST_SERVER_WG_IPV6_MASK}\n" >> "${file_params}"
-	printf "SERVER_PORT=${INST_SERVER_PORT}\n" >> "${file_params}"
-	printf "SERVER_PRIV_KEY=${INST_SERVER_PRIV_KEY}\n" >> "${file_params}"
-	printf "SERVER_PUB_KEY=${INST_SERVER_PUB_KEY}\n" >> "${file_params}"
-	printf "CLIENT_DNS=${INST_CLIENT_DNS}\n" >> "${file_params}"
-	printf "ALLOWED_IPS=${INST_ALLOWED_IPS}\n" >> "${file_params}"
+    printf "SERVER_PUB_IP=${INST_SERVER_PUB_IP}\n" >> "${file_params}"
+    printf "SERVER_WG_NIC=${INST_SERVER_WG_NIC}\n" >> "${file_params}"
+    printf "SERVER_WG_IPV4=${INST_SERVER_WG_IPV4}\n" >> "${file_params}"
+    printf "SERVER_WG_IPV4_MASK=${INST_SERVER_WG_IPV4_MASK}\n" >> "${file_params}"
+    printf "SERVER_WG_IPV6=${INST_SERVER_WG_IPV6}\n" >> "${file_params}"
+    printf "SERVER_WG_IPV6_MASK=${INST_SERVER_WG_IPV6_MASK}\n" >> "${file_params}"
+    printf "SERVER_PORT=${INST_SERVER_PORT}\n" >> "${file_params}"
+    printf "SERVER_PRIV_KEY=${INST_SERVER_PRIV_KEY}\n" >> "${file_params}"
+    printf "SERVER_PUB_KEY=${INST_SERVER_PUB_KEY}\n" >> "${file_params}"
+    printf "CLIENT_DNS=${INST_CLIENT_DNS}\n" >> "${file_params}"
+    printf "ALLOWED_IPS=${INST_ALLOWED_IPS}\n" >> "${file_params}"
     . "${file_params}"
     debug "SERVER_PUB_NIC: ${SERVER_PUB_NIC}"
     debug "SERVER_PUB_IP: ${SERVER_PUB_IP}"
@@ -1248,7 +1248,7 @@ wg_install() {
     debug "CLIENT_DNS: ${CLIENT_DNS}"
     debug "ALLOWED_IPS: ${ALLOWED_IPS}"
 
-	# Настройка sysctl Включить форвардинг на сервере
+    # Настройка sysctl Включить форвардинг на сервере
     local c1="$(exec_cmd_with_result echo "net.ipv4.ip_forward = 1")"
     local c2="$(exec_cmd_with_result echo "net.ipv6.conf.all.forwarding = 1")"
     if [ -n "${c1}" ] && ([ -z "${dry_run}" ] || [ "${dry_run}" = "0" ]); then
@@ -1264,11 +1264,11 @@ wg_install() {
     #     exec_cmd echo "net.ipv4.ip_forward = 1 > ${file_sysctl}"
     #     exec_cmd echo "net.ipv6.conf.all.forwarding = 1 >> ${file_sysctl}"
     # fi
-	# Файл конфигурации WIREGUARD
+    # Файл конфигурации WIREGUARD
     # FILE_CONF_WG="${path_wg}/${SERVER_WG_NIC}.conf"
     # FILE_CONF_WG="$(_join_path "${path_wg}" "${SERVER_WG_NIC}.conf")"
     FILE_CONF_WG="$(realpath -m "$(_join_path "${path_wg}" "${SERVER_WG_NIC}.conf")")"
-	printf "[Interface]\n" > "${FILE_CONF_WG}"
+    printf "[Interface]\n" > "${FILE_CONF_WG}"
     local _addr_wg_serv=''
     if [ -n "${SERVER_WG_IPV4}" ]; then
         local _addr_wg_serv="${SERVER_WG_IPV4}/${SERVER_WG_IPV4_MASK}"
@@ -1290,15 +1290,15 @@ wg_install() {
     chmod 0600 "${FILE_CONF_WG}"
  
     if [ "${OS}" = "alpine" ]; then
-		exec_cmd sysctl -p /etc/sysctl.d/wg.conf
-		exec_cmd rc-update add sysctl
-		exec_cmd ln -s /etc/init.d/wg-quick "/etc/init.d/wg-quick.${SERVER_WG_NIC}"
-		exec_cmd rc-service "wg-quick.${SERVER_WG_NIC}" start
-		exec_cmd rc-update add "wg-quick.${SERVER_WG_NIC}"
+        exec_cmd sysctl -p /etc/sysctl.d/wg.conf
+        exec_cmd rc-update add sysctl
+        exec_cmd ln -s /etc/init.d/wg-quick "/etc/init.d/wg-quick.${SERVER_WG_NIC}"
+        exec_cmd rc-service "wg-quick.${SERVER_WG_NIC}" start
+        exec_cmd rc-update add "wg-quick.${SERVER_WG_NIC}"
     else
         exec_cmd sysctl --system
-		exec_cmd systemctl start "wg-quick@${SERVER_WG_NIC}"
-		exec_cmd systemctl enable "wg-quick@${SERVER_WG_NIC}"
+        exec_cmd systemctl start "wg-quick@${SERVER_WG_NIC}"
+        exec_cmd systemctl enable "wg-quick@${SERVER_WG_NIC}"
     fi
     # файл hand_params, дополнительные параметры
     printf "SSH_PORT=22\n" > "${file_hand_params}"
@@ -1344,7 +1344,7 @@ search_client() {
     local _btc="${BEGIN_TITLE_CLIENT}"
     local _dtc="${DELIMITER_TITLE_CLIENT}"
     if [ -n "$1" ]; then
-    	if grep -E "^${_btc}${1}${_dtc}" "${_file_wg}" > /dev/null; then
+        if grep -E "^${_btc}${1}${_dtc}" "${_file_wg}" > /dev/null; then
             return 0
         else
             return 1
@@ -1436,16 +1436,17 @@ client_action() {
         debug "_allowed_ips_client: ${_allowed_ips_client}"
         # IPv4 клиента
         if [ -z "${ipv4}" ]; then
-            local _ipv4_client="${INST_SERVER_WG_IPV4}/${INST_SERVER_WG_IPV4_MASK}"
+            local _ipv4_client="${INST_SERVER_WG_IPV4}/32"
         else
-            local _ipv4_client="${ipv4}"
+            local _ipv4_client="$(get_item_str "$(get_ip_mask_4 "${ipv4}")" "ip")/32"
         fi
         # IPv6 клиента
         if [ -n "${use_ipv6}" ] && [ "${use_ipv6}" != 0 ]; then
-            if [ -z "${ipv4}" ]; then
-                local _ipv6_client="${INST_SERVER_WG_IPV6}/${INST_SERVER_WG_IPV6_MASK}"
+            if [ -z "${ipv6}" ]; then
+                local _ipv6_client="${INST_SERVER_WG_IPV6}/128"
             else
                 local _ipv6_client="${ipv6}"
+                local _ipv6_client="$(get_item_str "$(get_ip_mask_6 "${ipv6}")" "ip")/128"
             fi
         fi
         debug "_ipv4_client: ${_ipv4_client}"
@@ -1532,6 +1533,7 @@ client_action() {
         printf "PresharedKey = ${_client_key_pkey}\n"   >> "${_file_wg}"
         printf "AllowedIPs = ${_allowed_ips_srv}\n"     >> "${_file_wg}"
         printf "${title_client}\n"                      >> "${_file_wg}"
+        printf "\n"                                     >> "${_file_wg}"
         # сформировать QR-код для клиента
         if command -v qrencode &>/dev/null; then
             debug "Формируем QR-код для клиента в файл ${clnt_qrc}"
@@ -1861,9 +1863,12 @@ main() {
             fi
             # Проверить на валидность
             if [ -z "${SERVER_WG_IPV6}" ] || [ -z "${SERVER_WG_IPV6_MASK}" ]; then
-                err "Неверный IPv6 ${SERVER_WG_IPV6}/${SERVER_WG_IPV6_MASK}"
-                exit 1
-            elif [ -z "${SERVER_WG_IPV4}" ] || [ -z "${SERVER_WG_IPV4_MASK}" ]; then
+                if [ -n "${use_ipv6}" && "${use_ipv6}" != "0" ]; then
+                    err "Неверный IPv6 ${SERVER_WG_IPV6}/${SERVER_WG_IPV6_MASK}"
+                    exit 1
+                fi
+            fi
+            if [ -z "${SERVER_WG_IPV4}" ] || [ -z "${SERVER_WG_IPV4_MASK}" ]; then
                 err "Неверный IPv4 ${SERVER_WG_IPV4}/${SERVER_WG_IPV4_MASK}"
                 exit 1
             fi
