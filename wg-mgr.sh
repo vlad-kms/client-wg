@@ -17,7 +17,8 @@ ACTION_CLIENT='a add new d del delete list l'
 ACTION_CLIENT_ADD='a add new'
 ACTION_CLIENT_DEL='d del delete'
 ACTION_CLIENT_LIST='l list'
-DELIMITER_TITLE_CLIENT='='
+DELIMITER_TITLE_CLIENT='[= ]*'
+BEGIN_TITLE_CLIENT="###${DELIMITER_TITLE_CLIENT}Client${DELIMITER_TITLE_CLIENT}"
 
 VARS_FOR_INSTALL="./vars4install.conf"
 VARS_PARAMS="./params.conf"
@@ -1337,43 +1338,70 @@ wg_uninstall() {
     debug "wg_uninstall END =============================================="
 }
 
+# Поиск клиента по имени в файле конфигурации сервера
+# $1 - имя клиента для поиска
+search_client() {
+    local _btc="${BEGIN_TITLE_CLIENT}"
+    local _dtc="${DELIMITER_TITLE_CLIENT}"
+    if [ -n "$1" ]; then
+    	if grep -E "^${_btc}${1}${_dtc}" "${_file_wg}" > /dev/null; then
+            return 0
+        else
+            return 1
+        fi
+    else
+        return 1
+    fi
+}
+
+# Удалить файлы настроек для клиента
+# $1 имя клиента
+# $2 имя файла настроек сервера ...wg<N>.conf
+delete_client_config_serv() {
+    local _btc="${BEGIN_TITLE_CLIENT}"
+    local _dtc="${DELIMITER_TITLE_CLIENT}"
+    if [ -n "$1" ]; then
+        local clnt_cfg="$(_join_path "${path_out}" "${_name}-client.conf")"
+        local serv_cfg="$(_join_path "${path_out}" "${_name}-server.conf")"
+        local clnt_qrc="$(_join_path "${path_out}" "${_name}-qrcode.png")"
+        rm "${clnt_cfg}" > /dev/null 2>&1
+        rm "${serv_cfg}" > /dev/null 2>&1
+        rm "${clnt_qrc}" > /dev/null 2>&1
+        # удалить в файле конфигурации сервера инфу о клиенте
+        if [ -n "$2" ]; then
+            sed -i -En "/^${_btc}$1${_dtc}/,/^${_btc}$1${_dtc}/!p" "${2}"
+        fi
+    fi
+}
+
 # функция работы с клиентом
 # $1 action
 # $2 name
+# клиенты в файле конфигурации wg<N>.conf описываются следующим образом
+# ### Client=NAME_CLIENT=DESC CLIENT до конца строки
+# остальные строки до следуюющей строки такого вида или до конца файла - это параметры Wireguard для этого клиента
 client_action() {
     debug "client_action BEGIN ============================"
     debug "client_action; args: $(echo "$@")"
+    local _name="$2"
+    debug "_name: ${_name}"
+    local _btc="${BEGIN_TITLE_CLIENT}"
+    local _dtc="${DELIMITER_TITLE_CLIENT}"
     local _file_wg="$(realpath -m "$(_join_path "${path_wg}" "${SERVER_WG_NIC}.conf")")"
     debug "_file_wg: ${_file_wg}"
     case "$1" in
     'list')
-        local _d="${DELIMITER_TITLE_CLIENT}"
+        # найти IP адрес
+        # local ip_cln="$(awk "/^${_btc}${cn}/{flag=1; next} /^${_btc}/{flag=0} flag" ./test/wg1.conf | sed -En 's/^\s*Address\s*=\s*(.*)$/\1/p')"
         # прочитать клиентов в файле SERVER_WG_NIC.conf
         debug "${_file_wg}"
-        NUMBER_OF_CLIENTS="$(grep -c -E "^###\s*$_d\s*Client" "${_file_wg}")"
-        # if [ -z "${NUMBER_OF_CLIENTS}" ]; then
-        #     msg "В данной конфигурации ${_file_wg} клиентов 0:\n"
-        # else
-        #     msg "В данной конфигурации ${_file_wg} клиентов ${NUMBER_OF_CLIENTS}:\n"
-        # fi
+        NUMBER_OF_CLIENTS="$(grep -c -E "^${_btc}" "${_file_wg}")"
         msg "В данной конфигурации ${_file_wg} клиентов ${NUMBER_OF_CLIENTS}:\n"
-        if [ -z "${is_debug}" ] || [ "${is_debug}" = "0" ]; then
-    	    msg "$(grep -E "^###\s*$_d\s*Client" "${_file_wg}" | cut -d "$_d" -f 3 --output-delimiter " === " | nl -s ') ' -w 2)"
-        else
-    	    msg "$(grep -E "^###\s*$_d\s*Client" "${_file_wg}" | cut -d "$_d" -f 3,4 --output-delimiter " === " | nl -s ') ' -w 2)"
-        fi
+        msg "$(grep -E "^${_btc}" "${_file_wg}" | awk -F "${_dtc}" '{print $3"; "$4";"}' | nl -s ') ' -w 2)"
     ;;
     'del')
     ;;
     'add')
-        # SERVER_WG_IPV4=172.17.1.1/26
-        # SERVER_WG_IPV6=fd00:ffff::1/80
-        # INST_SERVER_PRIV_KEY=
-        # INST_SERVER_PUB_KEY=
-        # CLIENT_DNS_1=1.1.1.1
-        # CLIENT_DNS_2=1.0.0.1
-        # ALLOWED_IPS=0.0.0.0/0,::/0
-
         # Подготовить адрес:порт для подключения клиента Wireguard
         # И если тип адреса SERVER_PUB_IP есть IPv6, то добавить по краям []
         if check_ipv6_addr "${SERVER_PUB_IP}"; then
@@ -1425,7 +1453,7 @@ client_action() {
         local _address="${_ipv4_client}"
         if [ -n "${use_ipv6}" ] && [ "${use_ipv6}" != "0" ] && [ -n "${_ipv6_client}" ]; then
             if [ -z "${_address}" ]; then
-                local _address="${_ipv4_client}"
+                local _address="${_ipv6_client}"
             else
                 local _address="${_ipv4_client}, ${_ipv6_client}"
             fi
@@ -1435,34 +1463,81 @@ client_action() {
         if [ -n "${client_allowed_ips}" ]; then
             local _allowed_ips_srv="${client_allowed_ips}"
         else
-            local _allowed_ips_srv="${ALLOWED_IPS}"
+            local _allowed_ips_srv="${_address}"
         fi
-        debug "_allowed_ips_srv: ${_ipv4_client}"
-        # конфигурация для клиента
+        debug "_allowed_ips_srv: ${_allowed_ips_srv}"
+        # DNS для клиента $dns_list
+        dns_list=${dns_list:=${DEF_CLIENT_DNS}}
+        debug "dns_list: ${dns_list}"
+        # сформировать ключи для клиента
+        local _client_key_priv="$(wg genkey)"
+        local _client_key_pub="$(echo ${_client_key_priv} | wg pubkey)"
+        local _client_key_pkey="$(wg genpsk)"
+        # создать файл для клиента
+        local clnt_cfg="$(_join_path "${path_out}" "${_name}-client.conf")"
+        local serv_cfg="$(_join_path "${path_out}" "${_name}-server.conf")"
+        local clnt_qrc="$(_join_path "${path_out}" "${_name}-qrcode.png")"
+        exec_cmd touch "${clnt_cfg}"
+        exec_cmd touch "${serv_cfg}"
+        exec_cmd chmod 0600 "${clnt_cfg}"
+        exec_cmd chmod 0600 "${serv_cfg}"
+        # найти клиента с именем ${_name}, и если есть, то сначала удалить строки из wg.conf для его конфигурации
+        # и затем создать новые строки
+        if search_client "${_name}"; then
+            debug "Клиент с именем ${_name} уже есть. Его удаляем"
+            delete_client_config_serv "${_name}" "${_file_wg}"
+        fi
+        # сформировать файлы конфигурации для клиента
         # [Interface]
-        # PrivateKey = 
-        # ! Address = 10.16.16.4/24
-        # #DNS = 9.9.9.9, 149.112.112.112
-        # DNS = 192.168.15.3
+        # PrivateKey = $client_key_priv
+        # Address = 10.16.16.4/24
+        # DNS = 9.9.9.9, 149.112.112.112
         #
         # [Peer]
-        # PublicKey = 
-        # PresharedKey = 
-        # ! Endpoint = 77.105.139.99:51820
-        # ! AllowedIPs = 0.0.0.0/0, ::0/0
-        
-        # конфигурация для сервера
-        # ### Client "ASUS_home" 1.2.3 ###
+        # PublicKey = $SERVER_PUB_KEY
+        # PresharedKey = $client_key_pkey
+        # Endpoint = 77.105.139.99:51820
+        # AllowedIPs = 0.0.0.0/0, ::0/0
+        printf "[Interface]\n"                          >  "${clnt_cfg}"
+        printf "PrivateKey = ${_client_key_priv}\n"     >> "${clnt_cfg}"
+        printf "Address = ${_address}\n"                >> "${clnt_cfg}"
+        printf "DNS = ${dns_list}\n"                    >> "${clnt_cfg}"
+        printf "\n"                                     >> "${clnt_cfg}"
+        printf "[Peer]\n"                               >> "${clnt_cfg}"
+        printf "PublicKey = ${SERVER_PUB_KEY}\n"        >> "${clnt_cfg}"
+        printf "PresharedKey = ${_client_key_pkey}\n"   >> "${clnt_cfg}"
+        printf "Endpoint = ${_endpoint}\n"              >> "${clnt_cfg}"
+        printf "AllowedIPs = ${_allowed_ips_client}\n"  >> "${clnt_cfg}"
+        # сформировать файлы конфигурации для сервера
+        # ###=Client=ASUS_home= Description
         # [Peer]
-        # PublicKey = 
-        # PresharedKey = 
-        # ! AllowedIPs = 10.16.16.4/32
-        # ### end ASUS home ###
-
-
-        # сформировать ключи клиента
-        # сформировать файлы конфигурации для клиента и сервера
+        # PublicKey = $client_key_pub
+        # PresharedKey = $client_key_pkey
+        # AllowedIPs = 10.16.16.4/32
+        # файл конфигурации для сервера в $path_out
+        local _ip_desc="$( if [ -n ${_ipv4_client} ]; then echo ${_ipv4_client}; else echo ${_ipv6_client}; fi )"
+        local title_client="### Client = ${_name} = ${_ip_desc}"
+        debug "title_client: ${title_client}"
+        printf "${title_client}\n"                      >  "${serv_cfg}"
+        printf "[Peer]\n"                               >> "${serv_cfg}"
+        printf "PublicKey = ${_client_key_pub}\n"       >> "${serv_cfg}"
+        printf "PresharedKey = ${_client_key_pkey}\n"   >> "${serv_cfg}"
+        printf "AllowedIPs = ${_allowed_ips_srv}\n"     >> "${serv_cfg}"
+        printf "${title_client}\n"                      >> "${serv_cfg}"
+        # теперь все тоже самое записать в файл конфигурации для сервера $_file_wg
+        # printf "\n"                                     >> "${_file_wg}"
+        printf "${title_client}\n"                      >> "${_file_wg}"
+        printf "[Peer]\n"                               >> "${_file_wg}"
+        printf "PublicKey = ${_client_key_pub}\n"       >> "${_file_wg}"
+        printf "PresharedKey = ${_client_key_pkey}\n"   >> "${_file_wg}"
+        printf "AllowedIPs = ${_allowed_ips_srv}\n"     >> "${_file_wg}"
+        printf "${title_client}\n"                      >> "${_file_wg}"
         # сформировать QR-код для клиента
+        if command -v qrencode &>/dev/null; then
+            debug "Формируем QR-код для клиента в файл ${clnt_qrc}"
+            qrencode -t ansiutf8 -l L -o "${clnt_qrc}" <"${clnt_cfg}"
+        fi
+
     ;;
     esac
 
@@ -1563,7 +1638,7 @@ main() {
             ;;
             -n | --name)
                 # <address/mask>
-                client_name="$2"
+                local client_name="$2"
                 shift
             ;;
             -x | --allow-lxc)
@@ -1695,6 +1770,7 @@ main() {
     debug "ipv6________________: ${ipv6}"
     debug "client_allowed_ips__: ${client_allowed_ips}"
     debug "client_name_________: ${client_name}"
+    debug "dns_list____________: ${dns_list}"
     # создать каталоги
     local path_file_params="$(dirname ${file_params})"
     debug "Создаем каталоги: ${path_wg} ; ${path_out} ; ${path_file_params}"
@@ -1762,16 +1838,6 @@ main() {
         ;;
         "client")
             debug "Client"
-            # -a, --action <action>
-            #   a | add | new
-            #   d | del | delete
-            #   l | list
-            # -p, --params <filename>
-            # -d, --hand-params <filename>
-            # --ip4 <address/mask>
-            # --ip6 <address/mask>
-            # -e, --allowed-ips <network>
-            # -n, --name <client_name>
             # проверить наличие файла с конфигурацией для установки WG
             if check_file_exists 0 "${file_params}"; then
                 . "${file_params}"
