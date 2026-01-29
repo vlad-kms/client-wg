@@ -1802,6 +1802,9 @@ main() {
     fi
     # INST_SERVER_WG_IPV4/INST_SERVER_WG_IPV4_MASK
     # WIREGUARD SERVER IPv4/MASK
+    # if [ -z "${ipv4}" ]; then
+    #     ipv4=
+    # fi
     if [ -n "${ipv4}" ]; then
         local _ip_="$(get_ip_mask_4 "${ipv4}")"
         INST_SERVER_WG_IPV4="$(get_item_str "${_ip_}" "ip")"
@@ -1854,12 +1857,20 @@ main() {
                 local _ip_="$(get_ip_mask_4 "${ipv4}")"
                 SERVER_WG_IPV4="$(get_item_str "${_ip_}" "ip")"
                 SERVER_WG_IPV4_MASK="$(get_item_str "${_ip_}" "mask")"
+            else
+                err "Для сервера Wireguqrd должен быть обязательно указан IPv4"
+                exit 1
             fi
             # WIREGUARD SERVER IPv6/MASK
             if [ -n "${ipv6}" ]; then
                 local _ip_="$(get_ip_mask_6 "${ipv6}")"
                 SERVER_WG_IPV6="$(get_item_str "${_ip_}" "ip")"
                 SERVER_WG_IPV6_MASK="$(get_item_str "${_ip_}" "mask")"
+            else
+                if [ -n "${use_ipv6}" ] && [ "${use_ipv6}" != "0" ]; then
+                    err "Т.к. --use-ipv6 указан в аргументах запуска, то адрес ipv6 обязателен. А он не указан"
+                    exit 1
+                fi
             fi
             # Проверить на валидность
             if [ -z "${SERVER_WG_IPV6}" ] || [ -z "${SERVER_WG_IPV6_MASK}" ]; then
@@ -1868,10 +1879,10 @@ main() {
                     exit 1
                 fi
             fi
-            if [ -z "${SERVER_WG_IPV4}" ] || [ -z "${SERVER_WG_IPV4_MASK}" ]; then
-                err "Неверный IPv4 ${SERVER_WG_IPV4}/${SERVER_WG_IPV4_MASK}"
-                exit 1
-            fi
+            # if [ -z "${SERVER_WG_IPV4}" ] || [ -z "${SERVER_WG_IPV4_MASK}" ]; then
+            #     err "Неверный IPv4 ${SERVER_WG_IPV4}/${SERVER_WG_IPV4_MASK}"
+            #     exit 1
+            # fi
             # Нормализировать action
             local _act="$(echo " ${ACTION_CLIENT} " | sed -rn "s/.*( $action ).*/\1/p" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
             case "${_act}" in
