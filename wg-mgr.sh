@@ -2,13 +2,38 @@
 
 # TODO Разобраться с DNS в Alpine linux. Пока в Alpine чистый список DNS для интерфейса сервера
 
-RED='\033[0;31m'
-ORANGE='\033[0;33m'
-GREEN='\033[0;32m'
 NC='\033[0m'
-DARKBLUE='\033[34m'
-PURPLE='\033[35m'
-BLUE='\033[36m'
+# RED='\033[0;31m'
+# GREEN='\033[0;32m'
+# ORANGE='\033[0;33m'
+# DARKBLUE='\033[34m'
+# PURPLE='\033[35m'
+# CYAN='\033[36m'
+# GRAY='\033[37m'
+
+DRED='\033[0;31m'
+DGREEN='\033[0;32m'
+DORANGE='\033[0;33m'
+DBLUE='\033[34m'
+DPURPLE='\033[35m'
+DCYAN='\033[36m'
+DGRAY='\033[37m'
+
+LRED='\033[91m'
+LGREEN='\033[0;92m'
+LORANGE='\033[0;93m'
+LBLUE='\033[94m'
+LPURPLE='\033[95m'
+LCYAN='\033[96m'
+LGRAY='\033[97m'
+
+BLUE="${LBLUE}"
+YELLOW="${LORANGE}"
+ORANGE="${LORANGE}"
+WHITE="${LGRAY}"
+GREEN="${DGREEN}"
+PURPLE="${LPURPLE}"
+
 
 OS_RELEASE="/etc/os-release"
 # ARR_CMD=("install" "uninstall" "new" "prepare")
@@ -17,7 +42,7 @@ ACTION_CLIENT='a add new d del delete list l'
 ACTION_CLIENT_ADD='a add new'
 ACTION_CLIENT_DEL='d del delete'
 ACTION_CLIENT_LIST='l list'
-DELIMITER_TITLE_CLIENT='[= ]+'
+DELIMITER_TITLE_CLIENT='[ ]+'
 BEGIN_TITLE_CLIENT="###${DELIMITER_TITLE_CLIENT}Client${DELIMITER_TITLE_CLIENT}"
 END_TITLE_CLIENT="###${DELIMITER_TITLE_CLIENT}END${DELIMITER_TITLE_CLIENT}Client${DELIMITER_TITLE_CLIENT}"
 
@@ -59,6 +84,7 @@ show_help() {
     msg "            -i, --wg-nic <nic_name>        - имя интерфейса для установки сервера WIREGUARD"
     msg "                --ip4 <address/mask>       - IPv4 (ip/mask) сервера для установки сервера WIREGUARD"
     msg "                --ip6 <address/mask>       - IPv6 (ip/mask) сервера для установки сервера WIREGUARD"
+    msg "                --all                      - получить список всех клиентов, не только управляемых"
     msg " "
     msg "    uninstall  - удаление пакета wireguard и других, установленных вместе с ним, а также удалить все созданные каталоги и файлы"
     msg " "
@@ -578,9 +604,9 @@ set_mode() {
         find "$_ct" -type f -name "$_fm" -exec chmod 0700 {} \; > /dev/null
     else
         printf "${GREEN}\n" >&2
-        find "$_ct" -type d -exec chmod -v 0700 {} \; >&2
-        find "$_ct" -type f -exec chmod -v 0600 {} \; >&2
-        find "$_ct" -type f -name "$_fm" -exec chmod -v 0700 {} \; >&2
+        find "$_ct" -type d -exec chmod -v 0700 {} \; > /dev/null # 2>&2
+        find "$_ct" -type f -exec chmod -v 0600 {} \; > /dev/null # >&2
+        find "$_ct" -type f -name "$_fm" -exec chmod -v 0700 {} \; > /dev/null # >&2
         printf "${NC}\n" >&2
     fi
     debug "set_mode END =================================="
@@ -1287,8 +1313,8 @@ wg_install() {
     #     printf "DNS = ${CLIENT_DNS}\n" >> "${FILE_CONF_WG}"
     # fi
     # права на файл конфигурации
-    chmod 0700 "${path_wg}"
-    chmod 0600 "${FILE_CONF_WG}"
+    chmod 0700 "${path_wg}" > /dev/null 2>&1
+    chmod 0600 "${FILE_CONF_WG}" > /dev/null 2>&1
  
     if [ "${OS}" = "alpine" ]; then
         exec_cmd sysctl -p /etc/sysctl.d/wg.conf
@@ -1337,6 +1363,30 @@ wg_uninstall() {
     debug "wg_uninstall BEGIN ============================================"
 
     debug "wg_uninstall END =============================================="
+}
+
+# Проверить управляется ли клиент данным скриптом, т.е. можно ли удалять этого клиента или обновлять о нем информацию
+# $1 - имя клиента, должно быть точное совпадение
+check_can_managed_client() {
+    local _btc="${BEGIN_TITLE_CLIENT}"
+    local _etc="${END_TITLE_CLIENT}"
+    local _dtc="${DELIMITER_TITLE_CLIENT}"
+    if [ -n "$1" ]; then
+        # имя клиента не пустое
+        local _s=$(awk -v v1="${_btc}" -v v2="${_etc}" '
+            $0 ~ v1 {last_begin = $3; last_str = $3"; "$4}
+            $0 ~ v2  && last_begin == $4 {count++; print count") "last_str}
+        ' "${_file_wg}" | sed -En "s/^[0-9]*\)\s*($1);.*$/\1/p")
+        # echo "$_s" | sed -En "s/^[0-9]*\)\s*($1);.*$/\1/p"
+        if [ -z "$_s" ]; then
+            return 1
+        else
+            return 0
+        fi
+    else
+        # Ошибка
+        return 1
+    fi
 }
 
 # Поиск клиента по имени в файле конфигурации сервера
@@ -1402,13 +1452,41 @@ client_action() {
     debug "_file_wg: ${_file_wg}"
     case "$1" in
     'list')
-        # найти IP адрес
-        # local ip_cln="$(awk "/^${_btc}${cn}/{flag=1; next} /^${_btc}/{flag=0} flag" ./test/wg1.conf | sed -En 's/^\s*Address\s*=\s*(.*)$/\1/p')"
-        # прочитать клиентов в файле SERVER_WG_NIC.conf
-        debug "${_file_wg}"
-        NUMBER_OF_CLIENTS="$(grep -c -E "^${_btc}" "${_file_wg}")"
-        msg "В данной конфигурации ${_file_wg} клиентов ${NUMBER_OF_CLIENTS}:\n"
-        msg "$(grep -E "^${_btc}" "${_file_wg}" | awk -F "${_dtc}" '{print $3"; "$4";"}' | nl -s ') ' -w 2)"
+        if [ -n "${_name}" ] && ! check_can_managed_client "${_name}"; then
+            msg "Клиент ${_name} не может управляться данным скриптом"
+            return 1
+        fi
+        # NUMBER_OF_CLIENTS="$(grep -c -E "^${_btc}" "${_file_wg}")"
+        # msg "$(grep -E "^${_btc}" "${_file_wg}" | awk -F "${_dtc}" '{print $3"; "$4";"}' | nl -s ') ' -w 2)"
+        if [ -z "${list_all}" ] || [ "${list_all}" = 0 ]; then
+            msg "Управляемые данным скриптом клиенты в конфигурации ${_file_wg}:\n"
+            local _s=$(awk -v v1="${_btc}" -v v2="${_etc}" '
+                $0 ~ v1 {last_begin = $3; last_str = $3"; "$4}
+                $0 ~ v2 && last_begin == $4 {count++; print count") "last_str}
+            ' "${_file_wg}" | grep "${_name}")
+        else
+            msg "Все клиенты в конфигурации ${_file_wg}:\n"
+            local _s=$(awk -v v1="${_btc}" -v v2="${_etc}" '
+                $0 ~ v1 {print $3"; "$4}
+            ' "${_file_wg}" | grep "${_name}")
+        fi
+        msg "$_s"
+        # awk -v v1="${_btc}" -v v2="${_etc}" '
+        #     $0 ~ v1 {
+        #         stack[++depth] = $3
+        #     }
+        #     $0 ~ v2 {
+        #         if (depth > 0 && stack[depth] == $4) {
+        #             count++
+        #             print count") "$4"; "$5 
+        #             depth--
+        #         } else {
+        #             # Несоответствующий END - сбрасываем стек
+        #             depth = 0
+        #         }
+        #     }
+        # ' "${_file_wg}"
+
     ;;
     'del')
         # Проверить что передано имя клиента
@@ -1416,8 +1494,12 @@ client_action() {
             err "Не указано обязательное имя клиента для удаления"
             exit 1
         fi
+        if [ -n "${_name}" ] && ! check_can_managed_client "${_name}"; then
+            msg "Клиент ${_name} не может управляться данным скриптом"
+            return 1
+        fi
         delete_client_config_serv "${_name}" "${_file_wg}"
-        client_action "list" "${_name}"
+        # client_action "list"
     ;;
     'add')
         # Проверить что передано имя клиента
@@ -1542,8 +1624,8 @@ client_action() {
         # AllowedIPs = 10.16.16.4/32
         # файл конфигурации для сервера в $path_out
         local _ip_desc="$( if [ -n ${_ipv4_client} ]; then echo ${_ipv4_client}; else echo ${_ipv6_client}; fi )"
-        local title_client="### Client = ${_name} = ${_ip_desc}"
-        local footer_client="### END Client = ${_name} = ${_ip_desc}"
+        local title_client="### Client ${_name} ${_ip_desc}"
+        local footer_client="### END Client ${_name} ${_ip_desc}"
         debug "title_client: ${title_client}"
         debug "footer_client: ${footer_client}"
         printf "${title_client}\n"                      >  "${serv_cfg}"
@@ -1696,6 +1778,10 @@ main() {
                 dns_list="$2"
                 shift
             ;;
+            --all)
+                #   - получить список всех клиентов, не только управляемых"
+                list_all=1
+            ;;
             *)
                 err "Неверный параметр: ${1}"
                 return 1
@@ -1767,6 +1853,7 @@ main() {
     if [ -z "${dry_run}" ]; then
         dry_run=0
     fi
+    list_all="${list_all:=0}"
     # if [ -z "${is_file_args}" ] || [ ! -f "${file_args}" ]; then
     if [ -n "${is_update_file_args}" ] && [ "${is_update_file_args}" != "0" ]; then
         # file_args="$(_add_current_dot "${file_args:=${def_file_args}}")"
@@ -1812,6 +1899,7 @@ main() {
     debug "client_allowed_ips__: ${client_allowed_ips}"
     debug "client_name_________: ${client_name}"
     debug "dns_list____________: ${dns_list}"
+    debug "list_all____________: ${list_all}"
     # создать каталоги
     local path_file_params="$(dirname ${file_params})"
     debug "Создаем каталоги: ${path_wg} ; ${path_out} ; ${path_file_params}"
