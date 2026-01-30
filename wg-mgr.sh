@@ -1470,7 +1470,7 @@ client_action() {
         else
             msg "Все клиенты в конфигурации ${_file_wg}:\n"
             local _s=$(awk -v v1="${_btc}" -v v2="${_etc}" '
-                $0 ~ v1 {print $3"; "$4}
+                $0 ~ v1 {count++; print count") "$3"; "$4}
             ' "${_file_wg}" | grep "${_name}")
         fi
         msg "$_s"
