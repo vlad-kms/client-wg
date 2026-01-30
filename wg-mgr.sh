@@ -1464,13 +1464,13 @@ client_action() {
         if [ -z "${list_all}" ] || [ "${list_all}" = 0 ]; then
             msg "Управляемые данным скриптом клиенты в конфигурации ${_file_wg}:\n"
             local _s=$(awk -v v1="${_btc}" -v v2="${_etc}" '
-                $0 ~ v1 {last_begin = $3; last_str = $3"; "$4}
+                $0 ~ v1 {last_begin = $3; last_str = $3";\t"$4}
                 $0 ~ v2 && last_begin == $4 {count++; print count") "last_str}
             ' "${_file_wg}" | grep "${_name}")
         else
             msg "Все клиенты в конфигурации ${_file_wg}:\n"
             local _s=$(awk -v v1="${_btc}" -v v2="${_etc}" '
-                $0 ~ v1 {count++; print count") "$3"; "$4}
+                $0 ~ v1 {count++; print count") "$3";\t"$4}
             ' "${_file_wg}" | grep "${_name}")
         fi
         msg "$_s"
