@@ -42,9 +42,10 @@ ACTION_CLIENT='a add new d del delete list l'
 ACTION_CLIENT_ADD='a add new'
 ACTION_CLIENT_DEL='d del delete'
 ACTION_CLIENT_LIST='l list'
-DELIMITER_TITLE_CLIENT='[ ]+'
-BEGIN_TITLE_CLIENT="###${DELIMITER_TITLE_CLIENT}Client${DELIMITER_TITLE_CLIENT}"
-END_TITLE_CLIENT="###${DELIMITER_TITLE_CLIENT}END${DELIMITER_TITLE_CLIENT}Client${DELIMITER_TITLE_CLIENT}"
+
+DELIMITER_TITLE_CLIENT='[ ]'
+BEGIN_TITLE_CLIENT="###${DELIMITER_TITLE_CLIENT}+Client(${DELIMITER_TITLE_CLIENT}?|$)"
+END_TITLE_CLIENT="###${DELIMITER_TITLE_CLIENT}+END${DELIMITER_TITLE_CLIENT}+Client(${DELIMITER_TITLE_CLIENT}?|$)"
 
 VARS_FOR_INSTALL="./vars4install.conf"
 VARS_PARAMS="./params.conf"
@@ -1399,7 +1400,7 @@ check_can_managed_client() {
 search_client() {
     local _btc="${BEGIN_TITLE_CLIENT}"
     local _etc="${END_TITLE_CLIENT}"
-    local _dtc="${DELIMITER_TITLE_CLIENT}"
+    local _dtc="(${DELIMITER_TITLE_CLIENT}?|$)"
     if [ -n "$1" ]; then
         if grep -E "^${_btc}${1}${_dtc}" "${_file_wg}" > /dev/null; then
             return 0
@@ -1417,7 +1418,7 @@ search_client() {
 delete_client_config_serv() {
     local _btc="${BEGIN_TITLE_CLIENT}"
     local _etc="${END_TITLE_CLIENT}"
-    local _dtc="${DELIMITER_TITLE_CLIENT}"
+    local _dtc="(${DELIMITER_TITLE_CLIENT}?|$)"
     if [ -n "$1" ]; then
         local clnt_cfg="$(_join_path "${path_out}" "${_name}-client.conf")"
         local serv_cfg="$(_join_path "${path_out}" "${_name}-server.conf")"
@@ -1452,7 +1453,7 @@ client_action() {
     debug "_name: ${_name}"
     local _btc="${BEGIN_TITLE_CLIENT}"
     local _etc="${END_TITLE_CLIENT}"
-    local _dtc="${DELIMITER_TITLE_CLIENT}"
+    local _dtc="(${DELIMITER_TITLE_CLIENT}?|$)"
     local _file_wg="$(realpath -m "$(_join_path "${path_wg}" "${SERVER_WG_NIC}.conf")")"
     debug "_file_wg: ${_file_wg}"
     case "$1" in
