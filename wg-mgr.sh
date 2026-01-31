@@ -1373,10 +1373,12 @@ wg_uninstall() {
 
 # Проверить управляется ли клиент данным скриптом, т.е. можно ли удалять этого клиента или обновлять о нем информацию
 # $1 - имя клиента, должно быть точное совпадение
+# $2 - имя файла конфигурации Wireguard
 check_can_managed_client() {
     local _btc="${BEGIN_TITLE_CLIENT}"
     local _etc="${END_TITLE_CLIENT}"
     local _dtc="(${DELIMITER_TITLE_CLIENT}?|$)"
+    local _file_wg="$2"
     if [ -n "$1" ]; then
         # имя клиента не пустое
         local _s=$(awk -v v1="${_btc}" -v v2="${_etc}" '
@@ -1458,7 +1460,7 @@ client_action() {
     debug "_file_wg: ${_file_wg}"
     case "$1" in
     'list')
-        if [ -n "${_name}" ] && ! check_can_managed_client "${_name}"; then
+        if [ -n "${_name}" ] && ! check_can_managed_client "${_name}" "${_file_wg}"; then
             msg "Клиент ${_name} не может управляться данным скриптом"
             return 1
         fi
@@ -1500,7 +1502,7 @@ client_action() {
             err "Не указано обязательное имя клиента для удаления"
             exit 1
         fi
-        if [ -n "${_name}" ] && ! check_can_managed_client "${_name}"; then
+        if [ -n "${_name}" ] && ! check_can_managed_client "${_name}" "${_file_wg}"; then
             msg "Клиент ${_name} не может управляться данным скриптом"
             return 1
         fi
