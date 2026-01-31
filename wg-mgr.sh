@@ -988,9 +988,10 @@ wg_prepare_file_config() {
         printf "INST_SERVER_PUB_KEY=\n" >> "${file_config}"
     fi
     # FIRST DNS FOR CLIENT 
-    printf "INST_CLIENT_DNS=${DEF_CLIENT_DNS}\n" >> "${file_config}"
+    printf "INST_CLIENT_DNS=${dns_list:=${DEF_CLIENT_DNS}}\n" >> "${file_config}"
     # Разрешенные адреса для клиента
-    printf "INST_ALLOWED_IPS=${DEF_ALLOWED_IPS}\n" >> "${file_config}"
+    printf "INST_ALLOWED_IPS=${client_allowed_ips:=${DEF_ALLOWED_IPS}}\n" >> "${file_config}"
+    #
     [ "$is_debug" -ne "0" ] && {
         cat "${file_config}" | while read line; do
             if [ -n "$(echo ${line} | grep INST_SERVER_PRIV_KEY)" ]; then
@@ -1824,6 +1825,7 @@ main() {
     #     fi
     # fi
     cmd=${cmd:=install}
+    # is_file_args пустая, если не задавали аргумент -c (--config)
     if [ -z "${is_file_args}" ] || [ ! -f "${file_args}" ]; then
         # local _a_is_debug=${_a_is_debug:=0}
         # local _a_dry_run=${_a_dry_run:=0}
@@ -1857,7 +1859,6 @@ main() {
         dry_run=0
     fi
     list_all="${list_all:=0}"
-    # if [ -z "${is_file_args}" ] || [ ! -f "${file_args}" ]; then
     if [ -n "${is_update_file_args}" ] && [ "${is_update_file_args}" != "0" ]; then
         # file_args="$(_add_current_dot "${file_args:=${def_file_args}}")"
         # записать в файл аргументы текущего запуска
