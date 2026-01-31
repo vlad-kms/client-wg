@@ -111,6 +111,7 @@ show_help() {
     msg "                                             по-умолчанию только адрес клиента"
     msg "                --dns <dns1,dns2>          - список ip адресов DNS"
     msg "            -n, --name <name client>       - имя клиента"
+    msg "                --all                      - выводить всех клиентов, а не только поддерживаемых
     msg " "
     msg "common options:"
     msg "    -h, --help                 - описание использования скрипта"
