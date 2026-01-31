@@ -220,9 +220,3 @@ ____
 ```
 ./wg-mgr.sh client -a new -i wg3 --ip4 10.18.18.2/24 --use-ipv6 --ip6 fd01:dd00::2/64 -w ~/test-wg -p par.conf
 ```
-
-
-
-____
-____
-
