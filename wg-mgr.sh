@@ -44,8 +44,8 @@ ACTION_CLIENT_DEL='d del delete'
 ACTION_CLIENT_LIST='l list'
 
 DELIMITER_TITLE_CLIENT='[ ]'
-BEGIN_TITLE_CLIENT="###${DELIMITER_TITLE_CLIENT}+Client(${DELIMITER_TITLE_CLIENT}?|$)"
-END_TITLE_CLIENT="###${DELIMITER_TITLE_CLIENT}+END${DELIMITER_TITLE_CLIENT}+Client(${DELIMITER_TITLE_CLIENT}?|$)"
+BEGIN_TITLE_CLIENT="###${DELIMITER_TITLE_CLIENT}+Client${DELIMITER_TITLE_CLIENT}+"
+END_TITLE_CLIENT="###${DELIMITER_TITLE_CLIENT}+END${DELIMITER_TITLE_CLIENT}+Client${DELIMITER_TITLE_CLIENT}+"
 
 VARS_FOR_INSTALL="./vars4install.conf"
 VARS_PARAMS="./params.conf"
@@ -1376,7 +1376,7 @@ wg_uninstall() {
 check_can_managed_client() {
     local _btc="${BEGIN_TITLE_CLIENT}"
     local _etc="${END_TITLE_CLIENT}"
-    local _dtc="${DELIMITER_TITLE_CLIENT}"
+    local _dtc="(${DELIMITER_TITLE_CLIENT}?|$)"
     if [ -n "$1" ]; then
         # имя клиента не пустое
         local _s=$(awk -v v1="${_btc}" -v v2="${_etc}" '
