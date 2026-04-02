@@ -38,7 +38,7 @@ PURPLE="${LPURPLE}"
 OS_RELEASE="/etc/os-release"
 # ARR_CMD=("install" "uninstall" "new" "prepare")
 ARR_CMD='install uninstall client prepare'
-ACTION_CLIENT='a add new d del delete list l'
+ACTION_CLIENT='a add new d del delete list l count c'
 ACTION_CLIENT_ADD='a add new'
 ACTION_CLIENT_DEL='d del delete'
 ACTION_CLIENT_LIST='l list'
@@ -103,6 +103,7 @@ show_help() {
     msg "                          a | add | new   :  создать файлы настроек для клиента на сервере и клиенте, файл QRcode для клиента"
     msg "                          d | del | delete:  удалить клиента из файла настроек сервера"
     msg "                          l | list        :  получить список клиентов из файла настроек сервера"
+    msg "                          c | count       :  получить количество активных клиентов на текущий момент"
     msg "            -p, --params <filename>        - созданный при install файл с уточненными данными используется для создания файлов клиента"
     msg "            -d, --hand-params <filename>   - файл созданный вручную для определения дополнительных переменных для настройки клиентов"
     msg "            -i, --wg-nic <nic_name>        - имя интерфейса сервера для подключения клиента"
@@ -1669,10 +1670,28 @@ client_action() {
             qrencode -t ansiutf8 -l L -o "${clnt_qrc}.ansiutf8" < "${clnt_cfg}"
             qrencode -l L -o "${clnt_qrc}" < "${clnt_cfg}"
         fi
-
+    ;;
+    'count')
+        # Количество активных клиентов на текущий момент
+        wg_v=$(wg show)
+        wg_v=$(echo "$wg_v" | grep latest | sed -En 's/^ *latest handshake: *(([^ ].*) *ago|(now)) *$/\1/Ip' | awk '{
+            if ($0 !~ /day|hour|month|year/)
+            {
+                is_less=0
+                if ($0 ~ /minute/) {
+                if ($1 <= 3) print $0
+                } else print $0
+            }
+        }')
+        if [ -n "${wg_v}" ]; then
+            wg_v=$(echo "${wg_v}" | wc -l | sed -E 's/^[[:space:]]*//; s/[[:space:]]*$//')
+        else
+            wg_v=0
+        fi
+        debug "wg_v: $wg_v"
+        echo "$wg_v"
     ;;
     esac
-
     debug "client_action END   ============================"
 }
 
@@ -2031,11 +2050,15 @@ main() {
                 l | list)
                     action='list'
                 ;;
+                c | count)
+                    action='count'
+                ;;
                 default)
                     action=
                 ;;
             esac
-            client_action "${action}" "${client_name}"
+            r=$(client_action "${action}" "${client_name}")
+            echo "$r"
         ;;
         "prepare")
             wg_prepare_file_config

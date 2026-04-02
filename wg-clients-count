@@ -1,0 +1,37 @@
+#!/bin/sh
+
+wg_v=$(wg show)
+if [ "$1" = "test" ]; then
+  # тест
+  #wg_v="latest handshake: now\n latest handshake:  Now\n latest handshake:  month\n latest handshake:  2 ago\n latest handshake:  2 minute 24 second ago\n latest handshake:  4 minute 24 second ago\n latest handshake: ago\n latest handshake: dsgdfg"
+  echo "Testing string:\n$wg_v"
+  echo '------------------------------------------------------------'
+fi
+
+wg_v=$(echo "$wg_v" | grep latest | sed -En 's/^ *latest handshake: *(([^ ].*) *ago|(now)) *$/\1/Ip' | awk '{
+  if ($0 !~ /day|hour|month|year/)
+  {
+    is_less=0
+    if ($0 ~ /minute/) {
+      if ($1 <= 3) print $0
+    } else print $0
+  }
+}')
+
+if [ "$1" = "test" ]; then
+  echo "wg_v:\n$wg_v"
+fi
+
+# находим количество
+if [ -n "$wg_v" ]; then
+  wg_v=$(echo "$wg_v" | wc -l | sed -E 's/^[[:space:]]*//; s/[[:space:]]*$//')
+else
+  wg_v=0
+fi
+if [ "$1" = "test" ]; then
+  echo "count: ${wg_v}"
+else
+  echo "$wg_v"
+fi
+ 
+exit 0
