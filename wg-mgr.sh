@@ -1666,7 +1666,8 @@ client_action() {
         # сформировать QR-код для клиента
         if command -v qrencode >/dev/null; then
             debug "Формируем QR-код для клиента в файл ${clnt_qrc}"
-            qrencode -t ansiutf8 -l L -o "${clnt_qrc}" < "${clnt_cfg}"
+            qrencode -t ansiutf8 -l L -o "${clnt_qrc}.ansiutf8" < "${clnt_cfg}"
+            qrencode -l L -o "${clnt_qrc}" < "${clnt_cfg}"
         fi
 
     ;;
