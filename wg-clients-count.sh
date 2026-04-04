@@ -1,7 +1,33 @@
 #!/bin/sh
 
+main(){
+  while [ ${#} -gt 0 ]; do
+    case "${1}" in
+      -t | --test)
+        test=1
+      ;;
+      -m | --time)
+        tm=$2
+        shift 1
+        tm=$(expr $tm + 0) 2>/dev/null 
+      ;;
+      *)
+        echo "Неверный параметр: ${1}" >&2
+        return 1
+      ;;
+    esac
+    shift 1
+  done
+  test=${test:=0}
+  tm=${tm:=3}
+}
+
+main "$@"
+echo "Testing mode  : $(if [ "$test" = "0" ]; then echo OFF; else echo ON; fi)"
+echo "Time handshake: $tm minute"
+
 wg_v=$(wg show)
-if [ "$1" = "test" ]; then
+if [ "$test" = "1" ]; then
   # тест
   #wg_v="latest handshake: now\n latest handshake:  Now\n latest handshake:  month\n latest handshake:  2 ago\n latest handshake:  2 minute 24 second ago\n latest handshake:  4 minute 24 second ago\n latest handshake: ago\n latest handshake: dsgdfg"
   echo "Testing string:\n$wg_v"
@@ -13,7 +39,7 @@ wg_v=$(echo "$wg_v" | grep latest | sed -En 's/^ *latest handshake: *(([^ ].*) *
   {
     is_less=0
     if ($0 ~ /minute/) {
-      if ($1 <= 3) print $0
+      if ($1 <= $tm) print $0
     } else print $0
   }
 }')
