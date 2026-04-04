@@ -34,12 +34,12 @@ if [ "$test" = "1" ]; then
   echo '------------------------------------------------------------'
 fi
 
-wg_v=$(echo "$wg_v" | grep latest | sed -En 's/^ *latest handshake: *(([^ ].*) *ago|(now)) *$/\1/Ip' | awk '{
+wg_v=$(echo "$wg_v" | grep latest | sed -En 's/^ *latest handshake: *(([^ ].*) *ago|(now)) *$/\1/Ip' | awk -v tm=${tm} '{
   if ($0 !~ /day|hour|month|year/)
   {
     is_less=0
     if ($0 ~ /minute/) {
-      if ($1 <= $tm) print $0
+      if ($1 <= tm) print $0
     } else print $0
   }
 }')
