@@ -1475,9 +1475,20 @@ client_action() {
             ' "${_file_wg}" | grep "${_name}")
         else
             msg "Все клиенты в конфигурации ${_file_wg}:\n"
-            local _s=$(awk -v v1="${_btc}" -v v2="${_etc}" '
-                $0 ~ v1 {count++; print count") "$3";\t"$4}
-            ' "${_file_wg}" | grep "${_name}")
+            # алгоритм, который ищет по комментам
+            #local _s=$(awk -v v1="${_btc}" -v v2="${_etc}" '
+            #    $0 ~ v1 {count++; print count") "$3";\t"$4}
+            #' "${_file_wg}" | grep "${_name}")
+            # алгоритм, который ищет по [peer]
+            local _s=$(awk '
+                /^\[Peer\]/ {peer_num++; peer_active = 1; next};
+                peer_active && /^AllowedIPs *=/ {
+                    split($0, arr, "=");
+                    printf "Peer %d: AllowedIPs=%s\n", peer_num, arr[2];
+                    peer_active = 0
+                }
+            ' "${_file_wg}")
+            # | grep "${_name}")
         fi
         msg "$_s"
         # awk -v v1="${_btc}" -v v2="${_etc}" '
