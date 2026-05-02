@@ -1482,9 +1482,14 @@ client_action() {
             # алгоритм, который ищет по [peer]
             local _s=$(awk '
                 /^\[Peer\]/ {peer_num++; peer_active = 1; next};
+                peer_active && /^PublicKey *=/ {
+                    split($0, arr, " = ");
+                    pk = arr[2];
+                    # peer_active = 0
+                }
                 peer_active && /^AllowedIPs *=/ {
                     split($0, arr, "=");
-                    printf "Peer %d: AllowedIPs=%s\n", peer_num, arr[2];
+                    printf "Peer %d: AllowedIPs=%s ; %s\n", peer_num, arr[2], pk;
                     peer_active = 0
                 }
             ' "${_file_wg}")
