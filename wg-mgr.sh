@@ -1719,7 +1719,8 @@ client_action() {
 main() {
     debug "main BEGIN +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"
     if [ -z "$1" ]; then
-        # show_help
+        show_help
+        exit 1
         local cmd=install
     elif _startswith "$1" "-"; then
         local cmd=install
