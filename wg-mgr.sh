@@ -265,7 +265,7 @@ install_packages() {
 
 restart_wg() {
     debug "restart_wg BEGIN ==================================="
-    if [ -z "${OS}" ] || [ -z "{VERSION_ID}" ]; then
+    if [ -z "${OS}" ] || [ -z "${VERSION_ID}" ]; then
         local os_data=$(check_os 2)
         OS="$(get_item_str "${os_data}" 'os')"
     fi
@@ -311,8 +311,8 @@ _endswith() {
 #   =1, НЕ поддерживаемая ОС
 check_os() {
     debug "check_os BEGIN ==================="
-    debug "check_os args: $@"
-    debug "check_os args: $@"
+    debug "check_os args: $*"
+    debug "check_os args: $*"
     if [ -z "$@" ] || [ "${1}" = "0" ]; then
         # выводить сообщение как ошибку, красным цветом
         local is_out_err=0
@@ -407,7 +407,7 @@ get_item_str() {
 # Начальная инициализация перед выполнением скриптом основной части
 init_os() {
     debug "init_os BEGIN ==============================="
-    debug "init_os args: $@"
+    debug "init_os args: $*"
     local os_data="$(check_os 2)"
     local _os_="$(get_item_str  "${os_data}" "id")"
     OS="${_os_}"
@@ -2093,6 +2093,6 @@ main() {
 #### Начало скрипта ####
 ########################
 
-main $@
+main "$@"
 
 exit
