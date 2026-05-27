@@ -220,7 +220,7 @@ install_packages() {
     local ttt="$@"
     debug "install_packages, args: ${ttt}"
     # if [ -z "${ID}" ] || [ -z "{VERSION_ID}" ]; then
-    if [ -z "${OS}" ] || [ -z "{VERSION_ID}" ]; then
+    if [ -z "${OS}" ] || [ -z "${VERSION_ID}" ]; then
         # . "${OS_RELEASE}"
         local os_data=$(check_os 2)
         OS="$(get_item_str "${os_data}" 'os')"

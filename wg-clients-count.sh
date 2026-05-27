@@ -30,7 +30,7 @@ wg_v=$(wg show)
 if [ "$test" = "1" ]; then
   # тест
   #wg_v="latest handshake: now\n latest handshake:  Now\n latest handshake:  month\n latest handshake:  2 ago\n latest handshake:  2 minute 24 second ago\n latest handshake:  4 minute 24 second ago\n latest handshake: ago\n latest handshake: dsgdfg"
-  echo "Testing string:\n$wg_v"
+  printf "Testing string:\n%s" "$wg_v"
   echo '------------------------------------------------------------'
 fi
 
@@ -45,7 +45,7 @@ wg_v=$(echo "$wg_v" | grep latest | sed -En 's/^ *latest handshake: *(([^ ].*) *
 }')
 
 if [ "$1" = "test" ]; then
-  echo "wg_v:\n$wg_v"
+  printf "wg_v:\n%s" "$wg_v"
 fi
 
 # находим количество
