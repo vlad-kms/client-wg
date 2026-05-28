@@ -113,6 +113,10 @@ show_help() {
     msg "                                             по-умолчанию только адрес клиента"
     msg "                --dns <dns1,dns2>          - список ip адресов DNS"
     msg "            -n, --name <name client>       - имя клиента"
+    msg "            -k, --keepalive                - постоянное подтверждение соединения,"
+    msg "                                             время в секундах,через которое происходит посылка пакета для поддержания связи"
+    msg "                                             Если равно 0, то не использовать эту функцию. Используется только если клиент за NAT"
+    msg "                                             по-умолчанию 0"
     msg "                --all                      - выводить всех клиентов, а не только поддерживаемых"
     msg " "
     msg "common options:"
@@ -1631,6 +1635,19 @@ client_action() {
         # PresharedKey = $client_key_pkey
         # Endpoint = 77.105.139.99:51820
         # AllowedIPs = 0.0.0.0/0, ::0/0
+        # (Опционально, но важно для клиентов за NAT)
+        # Интервал в секундах для отправки keep-alive пакетов, чтобы сохранить соединение.
+        # PersistentKeepalive = 25
+        # подготовить строку с PersistentKeepalive
+        local str_keepalive=""
+        if [ -n "$keepalive" ] && [ "$keepalive" != "0" ]; then
+            # проверить валидность $keepalive, д.б. числом
+            eval 'val_ka=$(( 0 + $keepalive ))' 2>/dev/null
+            if [ "$?" = "0" ]; then
+                local str_keepalive="PersistentKeepalive = ${keepalive}"
+            fi
+        fi
+        #
         printf "[Interface]\n"                          >  "${clnt_cfg}"
         printf "PrivateKey = ${_client_key_priv}\n"     >> "${clnt_cfg}"
         printf "Address = ${_address}\n"                >> "${clnt_cfg}"
@@ -1641,6 +1658,9 @@ client_action() {
         printf "PresharedKey = ${_client_key_pkey}\n"   >> "${clnt_cfg}"
         printf "Endpoint = ${_endpoint}\n"              >> "${clnt_cfg}"
         printf "AllowedIPs = ${_allowed_ips_client}\n"  >> "${clnt_cfg}"
+        if [ -n "$str_keepalive" ]; then
+            printf "${str_keepalive}\n"                 >> "${clnt_cfg}";
+        fi
         # сформировать файлы конфигурации для сервера
         # ###=Client=ASUS_home= Description
         # [Peer]
@@ -1827,6 +1847,10 @@ main() {
                 #   - получить список всех клиентов, не только управляемых"
                 list_all=1
             ;;
+            -k | --keepalive)
+                keepalive="$2"
+                shift
+            ;;
             *)
                 err "Неверный параметр: ${1}"
                 return 1
@@ -1885,6 +1909,7 @@ main() {
     # set_var dry_run ${dry_run} ${_a_dry_run}
     # set_var use_ipv6 ${use_ipv6} ${_a_use_ipv6}
     # set_var nic_name "${nic_name}" "${_a_nic_name}"
+    set_var keepalive "0" "${keepalive}"
     set_var path_wg "${path_wg}" "${_a_path_wg}"
     set_var file_params "${file_params}" "${_a_file_params}"
     set_var file_hand_params "${file_hand_params}" "${_a_file_hand_params}"
@@ -1945,6 +1970,7 @@ main() {
     debug "client_name_________: ${client_name}"
     debug "dns_list____________: ${dns_list}"
     debug "list_all____________: ${list_all}"
+    debug "keepalive___________: ${keepalive}"
     # создать каталоги
     local path_file_params="$(dirname ${file_params})"
     debug "Создаем каталоги: ${path_wg} ; ${path_out} ; ${path_file_params}"
