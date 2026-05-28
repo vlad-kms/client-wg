@@ -298,6 +298,13 @@ _endswith() {
   echo "$_str" | grep -- "$_sub\$" >/dev/null 2>&1
 }
 
+_validate_int() {
+    if [ -z "$1" ] || [ "$1" = "0" ]; then return 0; fi
+    r=$(expr 0 + $1 ) 2>/dev/null
+    if [ "$?" = "0" ]; then return 0; fi
+    return 1
+}
+
 # проверить OS:
 #   debian >=10
 #   raspbian >=10
@@ -1642,12 +1649,16 @@ client_action() {
         local str_keepalive=""
         if [ -n "$keepalive" ] && [ "$keepalive" != "0" ]; then
             # проверить валидность $keepalive, д.б. числом
-            eval 'val_ka=$(( 0 + $keepalive ))' 2>/dev/null
-            if [ "$?" = "0" ]; then
+            # eval 'val_ka=$(( 0 + $keepalive ))' 2>/dev/null
+            # ( (( 0 + $keepalive )) )
+            #if [ "$?" = "0" ]; then
+            #if ( (( 0 + $keepalive )) 2>/dev/null); then
+            if (_validate_int $keepalive); then
                 local str_keepalive="PersistentKeepalive = ${keepalive}"
             fi
         fi
         #
+        debug "str_keepalive: $str_keepalive"
         printf "[Interface]\n"                          >  "${clnt_cfg}"
         printf "PrivateKey = ${_client_key_priv}\n"     >> "${clnt_cfg}"
         printf "Address = ${_address}\n"                >> "${clnt_cfg}"
