@@ -32,4 +32,13 @@ in_cidr_ipv4() {
     [ $(( ip_num & mask_num )) -eq $(( net_num & mask_num )) ] && return 0 || return 1
 }
 
-#echo $(in_cidr_ipv4 172.16.1.1 172.16.0.0/16)
+
+_validate_int() {
+    if [ -z "$1" ] || [ "$1" = "0" ]; then return 0; fi
+    r=$(expr 0 + $1 ) 2>/dev/null
+    if [ "$?" = "0" ]; then return 0; fi
+    return 1
+}
+
+
+if (_validate_int $1); then echo "VALID"; else echo "NOT VALID"; fi
