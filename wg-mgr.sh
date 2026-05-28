@@ -2,6 +2,7 @@
 
 # TODO Разобраться с DNS в Alpine linux. Пока в Alpine чистый список DNS для интерфейса сервера
 
+# shellcheck disable=SC2034
 NC='\033[0m'
 # RED='\033[0;31m'
 # GREEN='\033[0;32m'
@@ -33,7 +34,7 @@ ORANGE="${LORANGE}"
 WHITE="${LGRAY}"
 GREEN="${DGREEN}"
 PURPLE="${LPURPLE}"
-
+RED="${DRED}"
 
 OS_RELEASE="/etc/os-release"
 # ARR_CMD=("install" "uninstall" "new" "prepare")
@@ -179,7 +180,7 @@ check_root() {
 
 # Вернуть в $? 0, если текущий пользователь root. Иначе вернуть 1
 is_root() {
-    local uid=$(id | sed -En 's/^.*uid=([0-9]*).*$/\1/p')
+    local uid="$(id | sed -En 's/^.*uid=([0-9]*).*$/\1/p')"
     debug "USER id: ${uid}"
     debug "USER: $(id)"
     if [ "${uid}" -eq "0" ]; then
@@ -202,7 +203,7 @@ exec_cmd() {
         fi
     else
         local ttt="$@"
-        printf "${PURPLE}Выполнить команду: '${ttt}'${NC}\n" 1>&2
+        printf "%sВыполнить команду: '%s'%s\n" "${PURPLE}" "${ttt}" "${NC}" 1>&2
     fi
 }
 
@@ -302,6 +303,7 @@ _validate_int() {
     if [ -z "$1" ] || [ "$1" = "0" ]; then return 0; fi
     r=$(expr 0 + $1 ) 2>/dev/null
     if [ "$?" = "0" ]; then return 0; fi
+    #if expr 0 + $v 2>/dev/null >&2; then return 0; fi
     return 1
 }
 
@@ -406,7 +408,7 @@ get_item_str() {
         else
             local res=0
         fi
-        printf "${val}"
+        printf "%s" "${val}"
     else
         printf ''
         local res=1
@@ -879,8 +881,8 @@ check_ip_addr_mask_6() {
 # Возвращает ip адрес v4:
 #   код возврата =0 и строку 'addr_ipv4', если адрес валидный
 #   код возврата =1 и строку (пустую) '', если адрес НЕ валидный
-check_get_ip_addr_4() {
-    local res="$(get_ip_mask_4 $@)"
+check_get_ip_addr_4check_get_ip_addr_4() {
+    local res="$(get_ip_mask_4 "$@")"
     # res - строка 'ip=addrIPv4 mask=maskIPv4'
     local addr="$(echo "${res}" | sed -En 's/^.*ip\s*=\s*([0-9.]+).*$/\1/p')"
     # проверить на валидность адрес
@@ -899,7 +901,7 @@ check_get_ip_addr_4() {
 #   код возврата =0 и строку 'addr_ipv6', если адрес валидный
 #   код возврата =1 и строку (пустую) '', если адрес НЕ валидный
 check_get_ip_addr_6() {
-    local res="$(get_ip_mask_6 $@)"
+    local res="$(get_ip_mask_6 "$@")"
     # res - строка 'ip=addrIPv6 mask=maskIPv6'
     local addr="$(echo "${res}" | sed -En 's/^.*ip\s*=\s*([0-9a-fA-F:]+).*$/\1/p')"
     debug "check_get_ip_addr_6 addr: ${addr}"
@@ -919,7 +921,7 @@ check_get_ip_addr_6() {
 #   код возврата =0 и строку 'mask' (число 0..32), если маска валидная
 #   код возврата =1 и строку (пустую) '', если маска НЕ валидная
 check_get_ip_mask_4() {
-    local res="$(get_ip_mask_4 $@)"
+    local res="$(get_ip_mask_4 "$@")"
     # res - строка 'ip=addrIPv6 mask=maskIPv6'
     local mask="$(echo "${res}" | sed -En 's/^.*mask\s*=\s*([0-9]+).*$/\1/p')"
     debug "check_get_ip_mask_4 mask: ${mask}"
@@ -939,7 +941,7 @@ check_get_ip_mask_4() {
 #   код возврата =0 и строку 'mask' (число 0..128), если маска валидная
 #   код возврата =1 и строку (пустую) '', если маска НЕ валидная
 check_get_ip_mask_6() {
-    local res="$(get_ip_mask_6 $@)"
+    local res="$(get_ip_mask_6 "$@")"
     # res - строка 'ip=addrIPv6 mask=maskIPv6'
     local mask="$(echo "${res}" | sed -En 's/^.*mask\s*=\s*([0-9]+).*$/\1/p')"
     debug "check_get_ip_mask_6 mask: ${mask}"
@@ -1267,18 +1269,19 @@ wg_install() {
     fi
 
     # Сохранить параметры WireGuard
-    printf "SERVER_PUB_NIC=${INST_SERVER_PUB_NIC}\n" > "${file_params}"
-    printf "SERVER_PUB_IP=${INST_SERVER_PUB_IP}\n" >> "${file_params}"
-    printf "SERVER_WG_NIC=${INST_SERVER_WG_NIC}\n" >> "${file_params}"
-    printf "SERVER_WG_IPV4=${INST_SERVER_WG_IPV4}\n" >> "${file_params}"
-    printf "SERVER_WG_IPV4_MASK=${INST_SERVER_WG_IPV4_MASK}\n" >> "${file_params}"
-    printf "SERVER_WG_IPV6=${INST_SERVER_WG_IPV6}\n" >> "${file_params}"
-    printf "SERVER_WG_IPV6_MASK=${INST_SERVER_WG_IPV6_MASK}\n" >> "${file_params}"
-    printf "SERVER_PORT=${INST_SERVER_PORT}\n" >> "${file_params}"
-    printf "SERVER_PRIV_KEY=${INST_SERVER_PRIV_KEY}\n" >> "${file_params}"
-    printf "SERVER_PUB_KEY=${INST_SERVER_PUB_KEY}\n" >> "${file_params}"
-    printf "CLIENT_DNS=${INST_CLIENT_DNS}\n" >> "${file_params}"
-    printf "ALLOWED_IPS=${INST_ALLOWED_IPS}\n" >> "${file_params}"
+    printf "SERVER_PUB_NIC=%s\n" "${INST_SERVER_PUB_NIC}"  > "${file_params}"
+    printf "SERVER_PUB_IP=%s\n"  "${INST_SERVER_PUB_IP}"  >> "${file_params}"
+    printf "SERVER_WG_NIC=%s\n"  "${INST_SERVER_WG_NIC}"  >> "${file_params}"
+    printf "SERVER_WG_IPV4=%s\n" "${INST_SERVER_WG_IPV4}" >> "${file_params}"
+    printf "SERVER_WG_IPV4_MASK=%s\n" "${INST_SERVER_WG_IPV4_MASK}" >> "${file_params}"
+    printf "SERVER_WG_IPV6=%s\n" "${INST_SERVER_WG_IPV6}" >> "${file_params}"
+    printf "SERVER_WG_IPV6_MASK=%s\n" "${INST_SERVER_WG_IPV6_MASK}" >> "${file_params}"
+    printf "SERVER_PORT=%s\n" "${INST_SERVER_PORT}" >> "${file_params}"
+    printf "SERVER_PRIV_KEY=%s\n" "${INST_SERVER_PRIV_KEY}" >> "${file_params}"
+    printf "SERVER_PUB_KEY=%s\n"  "${INST_SERVER_PUB_KEY}"  >> "${file_params}"
+    printf "CLIENT_DNS=%s\n" "${INST_CLIENT_DNS}"   >> "${file_params}"
+    printf "ALLOWED_IPS=%s\n" "${INST_ALLOWED_IPS}" >> "${file_params}"
+    # shellcheck source=${file_params}
     . "${file_params}"
     debug "SERVER_PUB_NIC: ${SERVER_PUB_NIC}"
     debug "SERVER_PUB_IP: ${SERVER_PUB_IP}"
@@ -1659,18 +1662,20 @@ client_action() {
         fi
         #
         debug "str_keepalive: $str_keepalive"
-        printf "[Interface]\n"                          >  "${clnt_cfg}"
-        printf "PrivateKey = ${_client_key_priv}\n"     >> "${clnt_cfg}"
-        printf "Address = ${_address}\n"                >> "${clnt_cfg}"
-        printf "DNS = ${dns_list}\n"                    >> "${clnt_cfg}"
-        printf "\n"                                     >> "${clnt_cfg}"
-        printf "[Peer]\n"                               >> "${clnt_cfg}"
-        printf "PublicKey = ${SERVER_PUB_KEY}\n"        >> "${clnt_cfg}"
-        printf "PresharedKey = ${_client_key_pkey}\n"   >> "${clnt_cfg}"
-        printf "Endpoint = ${_endpoint}\n"              >> "${clnt_cfg}"
-        printf "AllowedIPs = ${_allowed_ips_client}\n"  >> "${clnt_cfg}"
+        {
+            printf "[Interface]\n"
+            printf "PrivateKey = %s\n" "${_client_key_priv}"
+            printf "Address = %s\n" "${_address}"
+            printf "DNS = %s\n" "${dns_list}"
+            printf "\n"
+            printf "[Peer]\n"
+            printf "PublicKey = %s\n" "${SERVER_PUB_KEY}"
+            printf "PresharedKey = %s\n" "${_client_key_pkey}"
+            printf "Endpoint = %s\n" "${_endpoint}"
+            printf "AllowedIPs = %s\n" "${_allowed_ips_client}"
+        } >  "${clnt_cfg}"
         if [ -n "$str_keepalive" ]; then
-            printf "${str_keepalive}\n"                 >> "${clnt_cfg}";
+            printf "%s\n" "${str_keepalive}" >> "${clnt_cfg}";
         fi
         # сформировать файлы конфигурации для сервера
         # ###=Client=ASUS_home= Description
@@ -1679,7 +1684,7 @@ client_action() {
         # PresharedKey = $client_key_pkey
         # AllowedIPs = 10.16.16.4/32
         # файл конфигурации для сервера в $path_out
-        local _ip_desc="$( if [ -n ${_ipv4_client} ]; then echo ${_ipv4_client}; else echo ${_ipv6_client}; fi )"
+        local _ip_desc="$( if [ -n "${_ipv4_client}" ]; then echo "${_ipv4_client}"; else echo "${_ipv6_client}"; fi )"
         local title_client="### Client ${_name} ${_ip_desc}"
         local footer_client="### END Client ${_name} ${_ip_desc}"
         debug "title_client: ${title_client}"
@@ -1939,16 +1944,18 @@ main() {
     if [ -n "${is_update_file_args}" ] && [ "${is_update_file_args}" != "0" ]; then
         # file_args="$(_add_current_dot "${file_args:=${def_file_args}}")"
         # записать в файл аргументы текущего запуска
-        printf "# сохраненные аргументы для запуска\n"          >  "${file_args}"
-        # printf "is_debug=${is_debug}\n"                         >> "${file_args}"
-        # printf "dry_run=${dry_run}\n"                           >> "${file_args}"
-        # printf "use_ipv6=${use_ipv6}\n"                         >> "${file_args}"
-        # printf "nic_name=${nic_name}\n"                         >> "${file_args}"
-        printf "path_wg=${path_wg}\n"                           >> "${file_args}"
-        printf "file_params=${file_params}\n"                   >> "${file_args}"
-        printf "file_hand_params=${file_hand_params}\n"         >> "${file_args}"
-        printf "path_out=${path_out}\n"                         >> "${file_args}"
-        printf "file_rules_firewall=${file_rules_firewall}\n"   >> "${file_args}"
+        {
+            printf "# сохраненные аргументы для запуска\n"
+            # printf "is_debug=%s\n" "${is_debug}"
+            # printf "dry_run=%s\n" "${dry_run}"
+            # printf "use_ipv6=%s\n" "${use_ipv6}"
+            # printf "nic_name=%s\n" "${nic_name}"
+            printf "path_wg=%s\n" "${path_wg}"
+            printf "file_params=%s\n" "${file_params}"
+            printf "file_hand_params=%s\n" "${file_hand_params}"
+            printf "path_out=%s\n" "${path_out}"
+            printf "file_rules_firewall=%s\n" "${file_rules_firewall}"
+        } > "${file_args}"
     fi
     # аргументы, которые не сохраняются, не имеют значений по-умолчанию и не настраиваются предварительно
     if [ "${cmd}" = "client" ]; then
@@ -1983,7 +1990,7 @@ main() {
     debug "list_all____________: ${list_all}"
     debug "keepalive___________: ${keepalive}"
     # создать каталоги
-    local path_file_params="$(dirname ${file_params})"
+    local path_file_params="$(dirname "${file_params}")"
     debug "Создаем каталоги: ${path_wg} ; ${path_out} ; ${path_file_params}"
     if [ -n "${path_wg}" ]; then mkdir -p "${path_wg}" > /dev/null; fi
     if [ -n "${path_out}" ]; then mkdir -p "${path_out}" > /dev/null; fi

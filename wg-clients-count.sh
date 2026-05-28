@@ -9,7 +9,7 @@ main(){
       -m | --time)
         tm=$2
         shift 1
-        tm=$(expr $tm + 0) 2>/dev/null 
+        tm=$((tm + 0)) 2>/dev/null 
       ;;
       *)
         echo "Неверный параметр: ${1}" >&2
@@ -34,7 +34,7 @@ if [ "$test" = "1" ]; then
   echo '------------------------------------------------------------'
 fi
 
-wg_v=$(echo "$wg_v" | grep latest | sed -En 's/^ *latest handshake: *(([^ ].*) *ago|(now)) *$/\1/Ip' | awk -v tm=${tm} '{
+wg_v=$(echo "$wg_v" | grep latest | sed -En 's/^ *latest handshake: *(([^ ].*) *ago|(now)) *$/\1/Ip' | awk -v tm="${tm}" '{
   if ($0 !~ /day|hour|month|year/)
   {
     is_less=0
