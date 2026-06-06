@@ -9,7 +9,7 @@ main(){
       -m | --time)
         tm=$2
         shift 1
-        tm=$(expr $tm + 0) 2>/dev/null 
+        tm=$(expr $tm + 0 2>/dev/null)
       ;;
       *)
         echo "Неверный параметр: ${1}" >&2
