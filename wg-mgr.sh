@@ -1,7 +1,11 @@
 #!/bin/sh
 
+# shellcheck disable=SC3043
+# shellcheck disable=SC2155
+
 # TODO Разобраться с DNS в Alpine linux. Пока в Alpine чистый список DNS для интерфейса сервера
 
+# shellcheck disable=SC2034
 NC='\033[0m'
 # RED='\033[0;31m'
 # GREEN='\033[0;32m'
@@ -33,7 +37,7 @@ ORANGE="${LORANGE}"
 WHITE="${LGRAY}"
 GREEN="${DGREEN}"
 PURPLE="${LPURPLE}"
-
+RED="${DRED}"
 
 OS_RELEASE="/etc/os-release"
 # ARR_CMD=("install" "uninstall" "new" "prepare")
