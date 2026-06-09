@@ -1,5 +1,6 @@
 #!/bin/sh
 
+# shellcheck disable=SC2059
 # shellcheck disable=SC3043
 # shellcheck disable=SC2155
 
