@@ -1249,6 +1249,7 @@ wg_install() {
     debug "INST_CLIENT_DNS: ${INST_CLIENT_DNS}"
     debug "INST_ALLOWED_IPS: ${INST_ALLOWED_IPS}"
     # установка WIREGUARD
+    # shellcheck disable=SC2235
     if [ "${OS}" = 'ubuntu' ] || ([ "${OS}" = 'debian' ] && [ "${VERSION_ID}" -gt "10" ]); then
         # apt-get update > /dev/null 2>&1
         # exec_cmd apt-get update
@@ -1354,9 +1355,11 @@ wg_install() {
     # Настройка sysctl Включить форвардинг на сервере
     local c1="$(exec_cmd_with_result echo "net.ipv4.ip_forward = 1")"
     local c2="$(exec_cmd_with_result echo "net.ipv6.conf.all.forwarding = 1")"
+    # shellcheck disable=SC2235
     if [ -n "${c1}" ] && ([ -z "${dry_run}" ] || [ "${dry_run}" = "0" ]); then
         printf "${c1}\n" > "${file_sysctl}"
     fi
+    # shellcheck disable=SC2235
     if [ -n "${c2}" ] && ([ -z "${dry_run}" ] || [ "${dry_run}" = "0" ]); then
         printf "${c2}\n" >> "${file_sysctl}"
     fi
@@ -1526,6 +1529,7 @@ delete_client_config_serv() {
 # остальные строки до следуюющей строки такого вида или до конца файла - это параметры Wireguard для этого клиента
 client_action() {
     debug "client_action BEGIN ============================"
+    # shellcheck disable=SC2116
     debug "client_action; args: $(echo "$@")"
     local _name="$2"
     debug "_name: ${_name}"
@@ -1717,7 +1721,7 @@ client_action() {
             # ( (( 0 + $keepalive )) )
             #if [ "$?" = "0" ]; then
             #if ( (( 0 + $keepalive )) 2>/dev/null); then
-            if (_validate_int $keepalive); then
+            if (_validate_int "$keepalive"); then
                 local str_keepalive="PersistentKeepalive = ${keepalive}"
             fi
         fi
