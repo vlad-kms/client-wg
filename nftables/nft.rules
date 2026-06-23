@@ -1,7 +1,8 @@
+werqwerqwer
+weqrqwer
+qwerqw3r
+
 #!/bin/bash
-dir_conf=/etc/amnezia/amneziawg
-if [ -f "${dir_conf}/params.conf" ];  then . "${dir_conf}/params.conf";  fi
-if [ -f "${dir_conf}/hand_params.conf" ]; then . "${dir_conf}/hand_params.conf"; fi
 
 awg_table=awg_table
 awg_table_arp=awg_table_arp
@@ -47,10 +48,11 @@ mark_inet=0x100
 mark_vpn=0x200
 mask_not_inet=0xFEFF
 mask_not_vpn=0xFDFF
-
+#!/vcbvc/vbvcb
 
 tmpfile="$(mktemp)"
 
+#!/bin/sh
 _CLEANED_=0
 _cleanup() {
   if [ ${_CLEANED_} -eq 0 ]; then
@@ -408,10 +410,6 @@ fi
 if [ "$action" = "del" ]; then
   destroy_awg_table
 elif [ "$action" = "add" ]; then
-  if [ -n "$SERVER_WG_NIC" ]; then
-    if command -v resolvectl > /dev/null; then resolvectl domain $SERVER_WG_NIC home.lan klinika.lan; fi
-    if command -v resolvectl > /dev/null; then resolvectl dns $SERVER_WG_NIC 192.168.15.3; fi
-  fi
   destroy_awg_table
   init_nft
 else
