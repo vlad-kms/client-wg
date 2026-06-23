@@ -1,5 +1,4 @@
 #!/bin/sh
-
 # shellcheck disable=SC2059
 # shellcheck disable=SC3043
 # shellcheck disable=SC2155
@@ -343,7 +342,7 @@ check_os() {
         local is_out_err=0
     fi
     local res_exit=0
-    # shellcheck source=${OS_RELEASE}
+    # shellcheck source=/dev/null
     . "${OS_RELEASE}"
     OS="${ID}"
     if [ "${OS}" = "debian" ] || [ "${OS}" = "raspbian" ]; then
@@ -1322,8 +1321,9 @@ wg_install() {
     printf "SERVER_PUB_KEY=%s\n"  "${INST_SERVER_PUB_KEY}"  >> "${file_params}"
     printf "CLIENT_DNS=%s\n" "${INST_CLIENT_DNS}"   >> "${file_params}"
     printf "ALLOWED_IPS=%s\n" "${INST_ALLOWED_IPS}" >> "${file_params}"
-    # shellcheck source=${file_params}
+    # shellcheck source=/dev/null
     . "${file_params}"
+    # shellcheck disable=SC2153
     debug "SERVER_PUB_NIC: ${SERVER_PUB_NIC}"
     debug "SERVER_PUB_IP: ${SERVER_PUB_IP}"
     debug "SERVER_WG_NIC: ${SERVER_WG_NIC}"
@@ -1797,6 +1797,7 @@ client_action() {
 # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+# shellcheck disable=SC2317
 main() {
     debug "main BEGIN +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"
     if [ -z "$1" ]; then
@@ -1942,7 +1943,7 @@ main() {
     file_args="$(_add_current_dot "${file_args:=${def_file_args}}")"
     mkdir -p "$(dirname "${file_args}")" > /dev/null
     if [ -f "${file_args}" ]; then
-        # shellcheck source=${file_args}
+        # shellcheck source=/dev/null
         . "${file_args}"
     fi
     # if [ -n "${file_args}" ]; then
@@ -2055,7 +2056,7 @@ main() {
 
     # проверить наличие файла с конфигурацией для установки WG
     if check_file_exists 0 "${file_config}"; then
-        # shellcheck source=${file_config}
+        # shellcheck source=/dev/null
         . "${file_config}" #> /dev/null # 2>&1
     fi
     # переопределить переменную из файла file_config
@@ -2114,7 +2115,7 @@ main() {
             debug "Client"
             # проверить наличие файла с конфигурацией для установки WG
             if check_file_exists 0 "${file_params}"; then
-                # shellcheck source=${file_params}
+                # shellcheck source=/dev/null
                 . "${file_params}"
             fi
             # заменить пременные аргументами командной строки
