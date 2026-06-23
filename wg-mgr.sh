@@ -1097,8 +1097,10 @@ inst_iptables(){
             #sed -i -E "/^#\!\/bin\/.*$/a\. ${file_params}" "${script_rules}"
             sed -i -E "1aif [ -f \"${_fp}\" \]\;  then \. \"${_fp}\"\;  fi" "${script_rules}"
             sed -i -E "2aif [ -f \"${_fhp}\" \]\; then \. \"${_fhp}\"\; fi" "${script_rules}"
-            sed -i -E "3aif command -v resolvectl > /dev/null; then resolvectl dns ${SERVER_WG_NIC} 192.168.15.3; fi" "${script_rules}"
-            sed -i -E "3aif command -v resolvectl > /dev/null; then resolvectl domain ${SERVER_WG_NIC} home.lan klinika.lan; fi" "${script_rules}"
+            sed -i -E "3aif [ -n \"${SERVER_WG_NIC}\" \]\; then" "${script_rules}"
+            sed -i -E "4a\ \ if command -v resolvectl > /dev/null; then resolvectl dns ${SERVER_WG_NIC} 192.168.15.3; fi" "${script_rules}"
+            sed -i -E "5a\ \ if command -v resolvectl > /dev/null; then resolvectl domain ${SERVER_WG_NIC} home.lan klinika.lan; fi" "${script_rules}"
+            sed -i -E "6afi" "${script_rules}"
 
             printf "PostUp=${script_rules} add\n" >> "${FILE_CONF_WG}"
             printf "PostDown=${script_rules} delete\n" >> "${FILE_CONF_WG}"
