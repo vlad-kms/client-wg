@@ -1,5 +1,4 @@
 #!/bin/sh
-
 # shellcheck disable=SC2059
 # shellcheck disable=SC3043
 # shellcheck disable=SC2155
@@ -343,7 +342,7 @@ check_os() {
         local is_out_err=0
     fi
     local res_exit=0
-    # shellcheck source=${OS_RELEASE}
+    # shellcheck source=/dev/null
     . "${OS_RELEASE}"
     OS="${ID}"
     if [ "${OS}" = "debian" ] || [ "${OS}" = "raspbian" ]; then
@@ -1310,20 +1309,35 @@ wg_install() {
     fi
 
     # Сохранить параметры WireGuard
-    printf "SERVER_PUB_NIC=%s\n" "${INST_SERVER_PUB_NIC}"  > "${file_params}"
-    printf "SERVER_PUB_IP=%s\n"  "${INST_SERVER_PUB_IP}"  >> "${file_params}"
-    printf "SERVER_WG_NIC=%s\n"  "${INST_SERVER_WG_NIC}"  >> "${file_params}"
-    printf "SERVER_WG_IPV4=%s\n" "${INST_SERVER_WG_IPV4}" >> "${file_params}"
-    printf "SERVER_WG_IPV4_MASK=%s\n" "${INST_SERVER_WG_IPV4_MASK}" >> "${file_params}"
-    printf "SERVER_WG_IPV6=%s\n" "${INST_SERVER_WG_IPV6}" >> "${file_params}"
-    printf "SERVER_WG_IPV6_MASK=%s\n" "${INST_SERVER_WG_IPV6_MASK}" >> "${file_params}"
-    printf "SERVER_PORT=%s\n" "${INST_SERVER_PORT}" >> "${file_params}"
-    printf "SERVER_PRIV_KEY=%s\n" "${INST_SERVER_PRIV_KEY}" >> "${file_params}"
-    printf "SERVER_PUB_KEY=%s\n"  "${INST_SERVER_PUB_KEY}"  >> "${file_params}"
-    printf "CLIENT_DNS=%s\n" "${INST_CLIENT_DNS}"   >> "${file_params}"
-    printf "ALLOWED_IPS=%s\n" "${INST_ALLOWED_IPS}" >> "${file_params}"
-    # shellcheck source=${file_params}
+    # printf "SERVER_PUB_NIC=%s\n" "${INST_SERVER_PUB_NIC}"  > "${file_params}"
+    # printf "SERVER_PUB_IP=%s\n"  "${INST_SERVER_PUB_IP}"  >> "${file_params}"
+    # printf "SERVER_WG_NIC=%s\n"  "${INST_SERVER_WG_NIC}"  >> "${file_params}"
+    # printf "SERVER_WG_IPV4=%s\n" "${INST_SERVER_WG_IPV4}" >> "${file_params}"
+    # printf "SERVER_WG_IPV4_MASK=%s\n" "${INST_SERVER_WG_IPV4_MASK}" >> "${file_params}"
+    # printf "SERVER_WG_IPV6=%s\n" "${INST_SERVER_WG_IPV6}" >> "${file_params}"
+    # printf "SERVER_WG_IPV6_MASK=%s\n" "${INST_SERVER_WG_IPV6_MASK}" >> "${file_params}"
+    # printf "SERVER_PORT=%s\n" "${INST_SERVER_PORT}" >> "${file_params}"
+    # printf "SERVER_PRIV_KEY=%s\n" "${INST_SERVER_PRIV_KEY}" >> "${file_params}"
+    # printf "SERVER_PUB_KEY=%s\n"  "${INST_SERVER_PUB_KEY}"  >> "${file_params}"
+    # printf "CLIENT_DNS=%s\n" "${INST_CLIENT_DNS}"   >> "${file_params}"
+    # printf "ALLOWED_IPS=%s\n" "${INST_ALLOWED_IPS}" >> "${file_params}"
+    {
+        printf "SERVER_PUB_NIC=%s\n" "${INST_SERVER_PUB_NIC}"
+        printf "SERVER_PUB_IP=%s\n"  "${INST_SERVER_PUB_IP}"
+        printf "SERVER_WG_NIC=%s\n"  "${INST_SERVER_WG_NIC}"
+        printf "SERVER_WG_IPV4=%s\n" "${INST_SERVER_WG_IPV4}"
+        printf "SERVER_WG_IPV4_MASK=%s\n" "${INST_SERVER_WG_IPV4_MASK}"
+        printf "SERVER_WG_IPV6=%s\n" "${INST_SERVER_WG_IPV6}"
+        printf "SERVER_WG_IPV6_MASK=%s\n" "${INST_SERVER_WG_IPV6_MASK}"
+        printf "SERVER_PORT=%s\n" "${INST_SERVER_PORT}"
+        printf "SERVER_PRIV_KEY=%s\n" "${INST_SERVER_PRIV_KEY}"
+        printf "SERVER_PUB_KEY=%s\n"  "${INST_SERVER_PUB_KEY}"
+        printf "CLIENT_DNS=%s\n" "${INST_CLIENT_DNS}"
+        printf "ALLOWED_IPS=%s\n" "${INST_ALLOWED_IPS}"
+    } > "${file_params}"
+    # shellcheck source=/dev/null
     . "${file_params}"
+    # shellcheck disable=SC2153
     debug "SERVER_PUB_NIC: ${SERVER_PUB_NIC}"
     debug "SERVER_PUB_IP: ${SERVER_PUB_IP}"
     debug "SERVER_WG_NIC: ${SERVER_WG_NIC}"
@@ -1401,6 +1415,12 @@ wg_install() {
         local _net="$(ipcalc "${SERVER_WG_IPV6}/${SERVER_WG_IPV6_MASK}" | grep -e "^Prefix:" | sed -En "s/^Prefix:\s*([^ \t]*).*$/\1/p")"
         printf "WG_NET6=${_net}\n" >> "${file_hand_params}"
     fi
+    {
+        printf "# параметр для файла nft.rules, используется для указания counter в правилах nftables\n"
+        printf "NFT_COUNTER=counter\n"
+        printf "# MAC адрес шлюза провайдера VPS\n"
+        printf "PROVIDER_GW_MAC=08:05:e2:fa:07:f0\n"
+    } >> "${file_hand_params}"
     # работа с настройками для iptables
     if which iptables > /dev/null 2>&1; then
         inst_iptables "${file_rules_firewall}"
@@ -1797,6 +1817,7 @@ client_action() {
 # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+# shellcheck disable=SC2317
 main() {
     debug "main BEGIN +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"
     if [ -z "$1" ]; then
@@ -1942,7 +1963,7 @@ main() {
     file_args="$(_add_current_dot "${file_args:=${def_file_args}}")"
     mkdir -p "$(dirname "${file_args}")" > /dev/null
     if [ -f "${file_args}" ]; then
-        # shellcheck source=${file_args}
+        # shellcheck source=/dev/null
         . "${file_args}"
     fi
     # if [ -n "${file_args}" ]; then
@@ -2055,7 +2076,7 @@ main() {
 
     # проверить наличие файла с конфигурацией для установки WG
     if check_file_exists 0 "${file_config}"; then
-        # shellcheck source=${file_config}
+        # shellcheck source=/dev/null
         . "${file_config}" #> /dev/null # 2>&1
     fi
     # переопределить переменную из файла file_config
@@ -2114,7 +2135,7 @@ main() {
             debug "Client"
             # проверить наличие файла с конфигурацией для установки WG
             if check_file_exists 0 "${file_params}"; then
-                # shellcheck source=${file_params}
+                # shellcheck source=/dev/null
                 . "${file_params}"
             fi
             # заменить пременные аргументами командной строки
