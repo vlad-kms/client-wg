@@ -46,10 +46,26 @@ mark_only_inet=120
 mark_only_vpn=110
 mark_all=100
 mark_inet=0x100
+mask_not_inet=$(( (~${mark_inet}) & 0xFFFFFFFF ))
 mark_vpn=0x200
-mask_not_inet=0xFEFF
-mask_not_vpn=0xFDFF
-#!/vcbvc/vbvcb
+mask_not_vpn=$(( (~${mark_vpn}) & 0xFFFFFFFF ))
+
+#printf "0x%08X\n" $mask_not_inet
+#printf "0x%016X\n" $mask_not_vpn
+#echo '---------------------------------'
+# Функция для вывода двоичного представления
+print_bin() {
+  #printf "0x%08X\n" $1
+  printf "0x%016X = " $1
+  for ((i=63; i>=0; i--)); do
+    echo -n $(( ($1 >> i) & 1 ))
+    [ $((i % 4)) -eq 0 ] && echo -n " "
+  done
+  echo
+}
+#print_bin $mask_not_inet
+#print_bin $mask_not_vpn
+#exit 
 
 tmpfile="$(mktemp)"
 
@@ -284,7 +300,7 @@ $(get_rule_element_set "$family $std_table_filter $name_set_awg_trust_vpn" "$tru
 $(get_rule_element_set "$family $std_table_filter $name_set_awg_nat_net" "$nat_net")
 
 EOF
-  #nft -f "$tmpfile"
+
   if ! safe_apply_rules "$tmpfile"; then exit 1; fi
 }
 
@@ -400,7 +416,7 @@ else
 fi                
 
 if [ -z "$action" ] || [ "$action" = "" ]; then
-  echo "Должена быть указана обязательная команда: add(a,init,i) или del(d,delete,destroy)"
+  echo "Должна быть указана обязательная команда: add(a,init,i) или del(d,delete,destroy)"
   exit 1
 fi
 #echo $action
@@ -422,12 +438,24 @@ if [ -n "$missing_vars" ]; then
 fi
 
 if [ "$action" = "del" ]; then
+  # resolvectl revert awg0
   destroy_awg_table
 elif [ "$action" = "add" ]; then
   destroy_awg_table
+  if [ -n "${SERVER_WG_NIC}" ] &&  ip l | grep -e ":\s*${SERVER_WG_NIC}:" >/dev/null && command -v resolvectl > /dev/null; then
+    echo "SERVER_WG_NIC: ${SERVER_WG_NIC}"
+    if [ -n "${NFT_DNS_LOCALNET}" ]; then
+      echo "NFT_DNS_LOCALNET: ${NFT_DNS_LOCALNET}"
+      resolvectl dns ${SERVER_WG_NIC} "${NFT_DNS_LOCALNET}"
+    fi
+    if [ -n "${NFT_SEARCH_DOMAIN_LOCALNET}" ]; then
+      echo "NFT_SEARCH_DOMAIN_LOCALNET: ${NFT_SEARCH_DOMAIN_LOCALNET}"
+      resolvectl domain "${SERVER_WG_NIC}" $NFT_SEARCH_DOMAIN_LOCALNET
+    fi
+  fi
   init_nft
 else
-  echo "Должена быть указана обязательная команда: add(a,init,i) или del(d,delete,destroy)"
+  echo "Должна быть указана обязательная команда: add(a,init,i) или del(d,delete,destroy)"
   exit 1
 fi
 

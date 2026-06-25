@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC2329
 # shellcheck disable=SC2059
 # shellcheck disable=SC3043
 # shellcheck disable=SC2155
@@ -1043,9 +1044,9 @@ INST_ALLOWED_IPS=${client_allowed_ips:=${DEF_ALLOWED_IPS}}"
     #
     [ "$is_debug" -ne "0" ] && {
         cat "${file_config}" | while read -r line; do
-            if [ -n "$(echo "${line}" | grep INST_SERVER_PRIV_KEY)" ]; then
+            if echo "${line}" | grep -q INST_SERVER_PRIV_KEY; then
                 debug "INST_SERVER_PRIV_KEY=[inst_server_priv_key]"
-            elif [ -n "$(echo ${line} | grep INST_SERVER_PUB_KEY)" ]; then
+            elif echo "${line}" | grep -q INST_SERVER_PUB_KEY; then
                 debug "INST_SERVER_PUB_KEY=[inst_server_pub_key]"
             else
                 debug "$line"
@@ -1058,10 +1059,6 @@ INST_ALLOWED_IPS=${client_allowed_ips:=${DEF_ALLOWED_IPS}}"
     # Подготовить файл с последними аргументами при установке WG
     {
         printf "# сохраненные аргументы для запуска\n"
-        # printf "is_debug=%s\n" "${_a_is_debug?:=0}"
-        # printf "dry_run=%s\n" "${_a_dry_run}"
-        # printf "use_ipv6=%s\n" "${_a_use_ipv6}"
-        # printf "nic_name=%s\n" "${nic_name}"
         printf "path_wg=%s\n" "${_a_path_wg}"
         printf "file_params=%s\n" "${_a_file_params}"
         printf "file_hand_params=%s\n" "${_a_file_hand_params}"
@@ -1096,10 +1093,12 @@ inst_iptables(){
             #sed -i -E "/^#\!\/bin\/.*$/a\. ${file_params}" "${script_rules}"
             sed -i -E "1aif [ -f \"${_fp}\" \]\;  then \. \"${_fp}\"\;  fi" "${script_rules}"
             sed -i -E "2aif [ -f \"${_fhp}\" \]\; then \. \"${_fhp}\"\; fi" "${script_rules}"
-            sed -i -E "3aif [ -n \"${SERVER_WG_NIC}\" \] &&  ip l | grep -e \":\s*${SERVER_WG_NIC}:\" >/dev/null\; then" "${script_rules}"
-            sed -i -E "4a\ \ if command -v resolvectl > /dev/null; then resolvectl dns ${SERVER_WG_NIC} 192.168.15.3; fi" "${script_rules}"
-            sed -i -E "5a\ \ if command -v resolvectl > /dev/null; then resolvectl domain ${SERVER_WG_NIC} home.lan klinika.lan; fi" "${script_rules}"
-            sed -i -E "6afi" "${script_rules}"
+            #sed -i -E "3aif [ -n \"\${SERVER_WG_NIC}\" \] &&  ip l | grep -e \":\s*\${SERVER_WG_NIC}:\" >/dev/null\; then" "${script_rules}"
+            #sed -i -E "4a\ \ if [ -n \"\${NFT_DNS_LOCALNET}\" \]\; then" "${script_rules}"
+            #sed -i -E "5a\ \ \ \ if command -v resolvectl > /dev/null; then resolvectl dns \${SERVER_WG_NIC} \${NFT_DNS_LOCALNET}; fi" "${script_rules}"
+            #sed -i -E "6a\ \ \ \ if command -v resolvectl > /dev/null; then resolvectl domain \${SERVER_WG_NIC} home.lan klinika.lan; fi" "${script_rules}"
+            #sed -i -E "7a\ \ fi" "${script_rules}"
+            #sed -i -E "8afi" "${script_rules}"
 
             printf "PostUp=${script_rules} add\n" >> "${FILE_CONF_WG}"
             printf "PostDown=${script_rules} delete\n" >> "${FILE_CONF_WG}"
@@ -1409,8 +1408,12 @@ wg_install() {
         exec_cmd systemctl enable "wg-quick@${SERVER_WG_NIC}"
     fi
     # файл hand_params, дополнительные параметры
-    printf "SSH_PORT=22\n" > "${file_hand_params}"
-    printf "WG_PROTO=udp\n" >> "${file_hand_params}"
+    {
+        printf "### Порт SSH\n"
+        printf "SSH_PORT=22\n"
+        printf "### Протокол клиента WIREGUARD\n"
+        printf "WG_PROTO=udp\n"
+     } > "${file_hand_params}"
     local _net="$(ipcalc "${SERVER_WG_IPV4}/${SERVER_WG_IPV4_MASK}" | grep -e "^Network:" | sed -En "s/^Network:\s*([^ \t]*).*$/\1/p")"
     printf "WG_NET=${_net}\n" >> "${file_hand_params}"
     if [ "${OS}" = 'alpine' ]; then
@@ -1421,22 +1424,26 @@ wg_install() {
         printf "WG_NET6=${_net}\n" >> "${file_hand_params}"
     fi
     {
-        printf "# MAC адрес шлюза провайдера VPS\n"
+        printf "### MAC адрес шлюза провайдера VPS\n"
         printf "PROVIDER_GW_MAC=08:05:e2:fa:07:f0\n"
-        printf "# параметр для файла nft.rules, используется для указания counter в правилах nftables\n"
+        printf "### параметр для файла nft.rules, используется для указания counter в правилах nftables\n"
         printf "NFT_COUNTER=counter\n"
-        printf "# IP сети, которые будут натиться\n"
+        printf "### IP сети, которые будут натиться\n"
         printf "NFT_NAT_NET=\"192.168.15.0/24, 192.168.16.0/24,192.168.25.0/24,192.168.26.0/24\"\n"
-        printf "# Список доверенных адресов из ИНЕТ'а\n"
+        printf "### Список доверенных адресов из ИНЕТ'а\n"
         printf "NFT_LIST_TRUSN_WAN='cl.vpn.mrovo.ru, cl-ang.vpn.mrovo.ru'\n"
-        printf "# Список доверенных адресов из LAN'ов\n"
+        printf "### Список доверенных адресов из LAN'ов\n"
         printf "NFT_LIST_TRUST_VPN=\"192.168.15.0/24\"\n"
-        printf "# Список адресов, которым разрешен доступ к LAN'ам\n"
+        printf "### Список адресов, которым разрешен доступ к LAN'ам\n"
         printf "NFT_LIST_VPN=\n"
-        printf "# Список адресов, которым разрешен доступ только к LAN'ам\n"
+        printf "### Список адресов, которым разрешен доступ только к LAN'ам\n"
         printf "NFT_LIST_VPN_ONLY=\n"
-        printf "# Список адресов, которым запрещен доступ к INET'у\n"
+        printf "### Список адресов, которым запрещен доступ к INET'у\n"
         printf "NFT_LIST_INET_DROP=\n"
+        printf "### DNS сервер локальной сети\n"
+        printf "#NFT_DNS_LOCALNET=192.168.15.1\n"
+        printf "### DNS домены поиска для локальной сети\n"
+        printf "#NFT_SEARCH_DOMAIN_LOCALNET=\"domain1.qq domain2.df\"\n"
     } >> "${file_hand_params}"
     # работа с настройками для iptables
     if which iptables > /dev/null 2>&1; then
