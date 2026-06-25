@@ -416,7 +416,7 @@ else
 fi                
 
 if [ -z "$action" ] || [ "$action" = "" ]; then
-  echo "Должена быть указана обязательная команда: add(a,init,i) или del(d,delete,destroy)"
+  echo "Должна быть указана обязательная команда: add(a,init,i) или del(d,delete,destroy)"
   exit 1
 fi
 #echo $action
@@ -438,12 +438,24 @@ if [ -n "$missing_vars" ]; then
 fi
 
 if [ "$action" = "del" ]; then
+  # resolvectl revert awg0
   destroy_awg_table
 elif [ "$action" = "add" ]; then
   destroy_awg_table
+  if [ -n "${SERVER_WG_NIC}" ] &&  ip l | grep -e ":\s*${SERVER_WG_NIC}:" >/dev/null && command -v resolvectl > /dev/null; then
+    echo "SERVER_WG_NIC: ${SERVER_WG_NIC}"
+    if [ -n "${NFT_DNS_LOCALNET}" ]; then
+      echo "NFT_DNS_LOCALNET: ${NFT_DNS_LOCALNET}"
+      resolvectl dns ${SERVER_WG_NIC} "${NFT_DNS_LOCALNET}"
+    fi
+    if [ -n "${NFT_SEARCH_DOMAIN_LOCALNET}" ]; then
+      echo "NFT_SEARCH_DOMAIN_LOCALNET: ${NFT_SEARCH_DOMAIN_LOCALNET}"
+      resolvectl domain "${SERVER_WG_NIC}" $NFT_SEARCH_DOMAIN_LOCALNET
+    fi
+  fi
   init_nft
 else
-  echo "Должена быть указана обязательная команда: add(a,init,i) или del(d,delete,destroy)"
+  echo "Должна быть указана обязательная команда: add(a,init,i) или del(d,delete,destroy)"
   exit 1
 fi
 
