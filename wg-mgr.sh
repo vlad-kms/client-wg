@@ -1096,7 +1096,7 @@ inst_iptables(){
             #sed -i -E "/^#\!\/bin\/.*$/a\. ${file_params}" "${script_rules}"
             sed -i -E "1aif [ -f \"${_fp}\" \]\;  then \. \"${_fp}\"\;  fi" "${script_rules}"
             sed -i -E "2aif [ -f \"${_fhp}\" \]\; then \. \"${_fhp}\"\; fi" "${script_rules}"
-            sed -i -E "3aif [ -n \"${SERVER_WG_NIC}\" \]\; then" "${script_rules}"
+            sed -i -E "3aif [ -n \"${SERVER_WG_NIC}\" \] &&  ip l | grep -e \":\s*${SERVER_WG_NIC}:\" >/dev/null\; then" "${script_rules}"
             sed -i -E "4a\ \ if command -v resolvectl > /dev/null; then resolvectl dns ${SERVER_WG_NIC} 192.168.15.3; fi" "${script_rules}"
             sed -i -E "5a\ \ if command -v resolvectl > /dev/null; then resolvectl domain ${SERVER_WG_NIC} home.lan klinika.lan; fi" "${script_rules}"
             sed -i -E "6afi" "${script_rules}"
@@ -1249,6 +1249,7 @@ wg_install() {
     debug "INST_CLIENT_DNS: ${INST_CLIENT_DNS}"
     debug "INST_ALLOWED_IPS: ${INST_ALLOWED_IPS}"
     # установка WIREGUARD
+    # shellcheck disable=SC2235
     if [ "${OS}" = 'ubuntu' ] || ([ "${OS}" = 'debian' ] && [ "${VERSION_ID}" -gt "10" ]); then
         # apt-get update > /dev/null 2>&1
         # exec_cmd apt-get update
@@ -1296,7 +1297,7 @@ wg_install() {
     fi
     if [ -z "${is_wg_install}" ]; then
         # wg не установлен
-        err "Требуется выполнить команду: INST_SERVER_PUB_KEY=\$\(echo "${INST_SERVER_PRIV_KEY}" | wg pubkey\)"
+        err "Требуется выполнить команду: INST_SERVER_PUB_KEY=\$\(echo \"${INST_SERVER_PRIV_KEY}\" | wg pubkey\)"
         err "Но WIREGUARD не установлен."
         if [ -z "${dry_run}" ] || [ "${dry_run}" -eq "0" ]; then
             exit 1
@@ -1354,9 +1355,11 @@ wg_install() {
     # Настройка sysctl Включить форвардинг на сервере
     local c1="$(exec_cmd_with_result echo "net.ipv4.ip_forward = 1")"
     local c2="$(exec_cmd_with_result echo "net.ipv6.conf.all.forwarding = 1")"
+    # shellcheck disable=SC2235
     if [ -n "${c1}" ] && ([ -z "${dry_run}" ] || [ "${dry_run}" = "0" ]); then
         printf "${c1}\n" > "${file_sysctl}"
     fi
+    # shellcheck disable=SC2235
     if [ -n "${c2}" ] && ([ -z "${dry_run}" ] || [ "${dry_run}" = "0" ]); then
         printf "${c2}\n" >> "${file_sysctl}"
     fi
@@ -1382,9 +1385,11 @@ wg_install() {
         fi
         local _addr_wg_serv="${_addr_wg_serv}${SERVER_WG_IPV6}/${SERVER_WG_IPV6_MASK}"
     fi
-    printf "Address = ${_addr_wg_serv}\n"  >> "${FILE_CONF_WG}"
-    printf "ListenPort = ${SERVER_PORT}\n" >> "${FILE_CONF_WG}"
-    printf "PrivateKey = ${SERVER_PRIV_KEY}\n" >> "${FILE_CONF_WG}"
+    {
+        printf "Address = ${_addr_wg_serv}\n"
+        printf "ListenPort = ${SERVER_PORT}\n"
+        printf "PrivateKey = ${SERVER_PRIV_KEY}\n"
+    } >> "${FILE_CONF_WG}"
     # if [ -n "${CLIENT_DNS}" ]; then
     #     printf "DNS = ${CLIENT_DNS}\n" >> "${FILE_CONF_WG}"
     # fi
@@ -1416,10 +1421,22 @@ wg_install() {
         printf "WG_NET6=${_net}\n" >> "${file_hand_params}"
     fi
     {
-        printf "# параметр для файла nft.rules, используется для указания counter в правилах nftables\n"
-        printf "NFT_COUNTER=counter\n"
         printf "# MAC адрес шлюза провайдера VPS\n"
         printf "PROVIDER_GW_MAC=08:05:e2:fa:07:f0\n"
+        printf "# параметр для файла nft.rules, используется для указания counter в правилах nftables\n"
+        printf "NFT_COUNTER=counter\n"
+        printf "# IP сети, которые будут натиться\n"
+        printf "NFT_NAT_NET=\"192.168.15.0/24, 192.168.16.0/24,192.168.25.0/24,192.168.26.0/24\"\n"
+        printf "# Список доверенных адресов из ИНЕТ'а\n"
+        printf "NFT_LIST_TRUSN_WAN='cl.vpn.mrovo.ru, cl-ang.vpn.mrovo.ru'\n"
+        printf "# Список доверенных адресов из LAN'ов\n"
+        printf "NFT_LIST_TRUST_VPN=\"192.168.15.0/24\"\n"
+        printf "# Список адресов, которым разрешен доступ к LAN'ам\n"
+        printf "NFT_LIST_VPN=\n"
+        printf "# Список адресов, которым разрешен доступ только к LAN'ам\n"
+        printf "NFT_LIST_VPN_ONLY=\n"
+        printf "# Список адресов, которым запрещен доступ к INET'у\n"
+        printf "NFT_LIST_INET_DROP=\n"
     } >> "${file_hand_params}"
     # работа с настройками для iptables
     if which iptables > /dev/null 2>&1; then
@@ -1526,6 +1543,7 @@ delete_client_config_serv() {
 # остальные строки до следуюющей строки такого вида или до конца файла - это параметры Wireguard для этого клиента
 client_action() {
     debug "client_action BEGIN ============================"
+    # shellcheck disable=SC2116
     debug "client_action; args: $(echo "$@")"
     local _name="$2"
     debug "_name: ${_name}"
@@ -1544,6 +1562,7 @@ client_action() {
         # msg "$(grep -E "^${_btc}" "${_file_wg}" | awk -F "${_dtc}" '{print $3"; "$4";"}' | nl -s ') ' -w 2)"
         if [ -z "${list_all}" ] || [ "${list_all}" = 0 ]; then
             msg "Управляемые данным скриптом клиенты в конфигурации ${_file_wg}:\n"
+            # shellcheck disable=SC2046
             local _s=$(awk -v v1="${_btc}" -v v2="${_etc}" '
                 $0 ~ v1 {last_begin = $3; last_str = $3";\t"$4}
                 $0 ~ v2 && last_begin == $4 {count++; print count") "last_str}
@@ -1555,6 +1574,7 @@ client_action() {
             #    $0 ~ v1 {count++; print count") "$3";\t"$4}
             #' "${_file_wg}" | grep "${_name}")
             # алгоритм, который ищет по [peer]
+            # shellcheck disable=SC2046
             local _s=$(awk '
                 /^\[Peer\]/ {peer_num++; peer_active = 1; next};
                 peer_active && /^PublicKey *=/ {
@@ -1717,7 +1737,7 @@ client_action() {
             # ( (( 0 + $keepalive )) )
             #if [ "$?" = "0" ]; then
             #if ( (( 0 + $keepalive )) 2>/dev/null); then
-            if (_validate_int $keepalive); then
+            if (_validate_int "$keepalive"); then
                 local str_keepalive="PersistentKeepalive = ${keepalive}"
             fi
         fi
