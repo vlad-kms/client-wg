@@ -71,7 +71,7 @@ is_debug=0
 # path_wg=.
 file_sysctl='/etc/sysctl.d/wg.conf'
 def_file_hand_params="./hand_params.conf"
-def_file_args='./last-args'
+file_args='./last-args.conf'
 is_file_args=''
 
 oi6='[0-9a-fA-F]{1,4}'
@@ -139,7 +139,6 @@ show_help() {
     msg "    -6, --use-ipv6             - использовать IPv6 или нет для настройки локальных адресов WIREGUARD VPN. НЕ РЕАЛИЗОВАНО (пока)"
     msg "        --dry-run              - команду не выполнять, только показать"
     msg "    -w, --wg-path <path>       - путь к установленному Wireguard"
-    msg "    -f, --file-args <path>     - путь к файлу где хранятся аргументы для командной строки"
     msg "    -u, --update-args          - флаг, что надо обновить файл с аргументами соответственно текущим аргументам командной строки"
     msg "    -x, --allow-lxc            - флаг, что не блокировать установку WIREGUARD в контейнеры и VM LXD"
     msg " "
@@ -1911,12 +1910,6 @@ main() {
                 local _a_file_hand_params="${2}"
                 shift
             ;;
-            -f | --file-args)
-                # путь к файлу где хранятся аргументы для командной строки"
-                file_args="${2}"
-                is_file_args=is_file_args
-                shift
-            ;;
             -u | --update-args)
                 # флаг, что надо обновить файл с аргументами соответственно текущим аргументам командной строки
                 is_update_file_args=1
@@ -1996,9 +1989,7 @@ main() {
     is_update_file_args="${is_update_file_args:=0}"
     file_config="$(_add_current_dot "${file_config:-"$VARS_FOR_INSTALL"}")"
     mkdir -p "$(dirname "${file_config}")" > /dev/null
-    # file_args="$(realpath -m "$(_join_path "${_a_path_wg}" "$(_add_current_dot "${file_args:=${def_file_args}}")")")"
-    # file_args="$(_add_current_dot "${file_args}")"
-    file_args="$(_add_current_dot "${file_args:=${def_file_args}}")"
+    file_args="$(_add_current_dot "${file_args}")"
     mkdir -p "$(dirname "${file_args}")" > /dev/null
     if [ -f "${file_args}" ]; then
         # shellcheck source=/dev/null
@@ -2011,14 +2002,9 @@ main() {
     #     fi
     # fi
     cmd=${cmd:-install}
-echo "is_file_args:::${is_file_args}"
     # is_file_args пустая, если не задавали аргумент -f (--file-args)
     # if [ -z "${is_file_args}" ] || [ ! -f "${file_args}" ]; then
         # Обрабатываем аргументы командной строки, которые сохраняются в файл аргументов
-        # local _a_is_debug=${_a_is_debug:=0}
-        # local _a_dry_run=${_a_dry_run:=0}
-        # local _a_use_ipv6=${_a_use_ipv6:=0}
-        # local _a_nic_name="${_a_nic_name:=${DEF_SERVER_WG_NIC}}"
         local _a_name_service="${_a_name_service:-wg}"
         local _a_path_wg="$(_add_current_dot "${_a_path_wg:-/etc/wireguard}")"
         local temp_path="$(_join_path "${_a_path_wg}" "$(_add_current_dot "${_a_file_params:-"$VARS_PARAMS"}")")"
@@ -2029,10 +2015,6 @@ echo "is_file_args:::${is_file_args}"
         local _a_path_out="$(realpath -m "$(_add_current_dot "${_a_path_out:-${temp_path}}")")"
         local _a_file_rules_firewall="$(_add_current_dot "${_a_file_rules_firewall:-./iptables/default-iptables.rules}")"
     # fi
-    # set_var is_debug ${is_debug} ${_a_is_debug}
-    # set_var dry_run ${dry_run} ${_a_dry_run}
-    # set_var use_ipv6 ${use_ipv6} ${_a_use_ipv6}
-    # set_var nic_name "${nic_name}" "${_a_nic_name}"
     set_var keepalive "0" "${keepalive}"
     set_var name_service "${name_service}" "${_a_name_service}"
     set_var path_wg "${path_wg}" "${_a_path_wg}"

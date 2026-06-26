@@ -28,5 +28,5 @@ nftables
 !nftables/*.rules
 !nftables/*.templates
 iptables
-!iptables/**.rules
+!iptables/*.rules
 !iftables/*.templates
