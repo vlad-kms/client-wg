@@ -43,6 +43,7 @@ RED="${DRED}"
 OS_RELEASE="/etc/os-release"
 # ARR_CMD=("install" "uninstall" "new" "prepare")
 ARR_CMD='install uninstall client prepare'
+ARR_NAME_SERVICE='wg awg'
 ACTION_CLIENT='a add new d del delete list l count c'
 ACTION_CLIENT_ADD='a add new'
 ACTION_CLIENT_DEL='d del delete'
@@ -70,7 +71,7 @@ is_debug=0
 # path_wg=.
 file_sysctl='/etc/sysctl.d/wg.conf'
 def_file_hand_params="./hand_params.conf"
-def_file_args='./last-args'
+file_args='./last-args.conf'
 is_file_args=''
 
 oi6='[0-9a-fA-F]{1,4}'
@@ -130,10 +131,14 @@ show_help() {
     msg "    -o, --out-path <path out>  - путь куда записываются файлы клиента,"
     msg "                                 если команда install, то создать каталог, если его нет"
     msg "                                 если команда new, то создать каталог, если его нет и записать в него файлы для клиента"
+    msg "    -s, --service <NameService>- сервис, один из списка"
+    msg "                                 [wg, awg]"
+    msg "                                   wg      - Wireguard"
+    msg "                                   awg     - AmneziaWG"
+    msg "                                   По-умолчанию: wg (Wireguard)"
     msg "    -6, --use-ipv6             - использовать IPv6 или нет для настройки локальных адресов WIREGUARD VPN. НЕ РЕАЛИЗОВАНО (пока)"
     msg "        --dry-run              - команду не выполнять, только показать"
     msg "    -w, --wg-path <path>       - путь к установленному Wireguard"
-    msg "    -f, --file-args <path>     - путь к файлу где хранятся аргументы для командной строки"
     msg "    -u, --update-args          - флаг, что надо обновить файл с аргументами соответственно текущим аргументам командной строки"
     msg "    -x, --allow-lxc            - флаг, что не блокировать установку WIREGUARD в контейнеры и VM LXD"
     msg " "
@@ -1064,6 +1069,7 @@ INST_ALLOWED_IPS=${client_allowed_ips:=${DEF_ALLOWED_IPS}}"
         printf "file_hand_params=%s\n" "${_a_file_hand_params}"
         printf "path_out=%s\n" "${_a_path_out}"
         printf "file_rules_firewall=%s\n" "${_a_file_rules_firewall}"
+        printf "name_service=%s\n" "${name_service}"
     } >  "${file_args}"
     debug "wg_prepare_file_config END  =========================="
 }
@@ -1904,12 +1910,6 @@ main() {
                 local _a_file_hand_params="${2}"
                 shift
             ;;
-            -f | --file-args)
-                # путь к файлу где хранятся аргументы для командной строки"
-                file_args="${2}"
-                is_file_args=is_file_args
-                shift
-            ;;
             -u | --update-args)
                 # флаг, что надо обновить файл с аргументами соответственно текущим аргументам командной строки
                 is_update_file_args=1
@@ -1960,6 +1960,10 @@ main() {
                 keepalive="$2"
                 shift
             ;;
+            -s | --service)
+                local _a_name_service="$2"
+                shift
+            ;;
             *)
                 err "Неверный параметр: ${1}"
                 return 1
@@ -1983,11 +1987,9 @@ main() {
     debug "Инициализация закончилась...\n"
 
     is_update_file_args="${is_update_file_args:=0}"
-    file_config="$(_add_current_dot "${file_config:="$VARS_FOR_INSTALL"}")"
+    file_config="$(_add_current_dot "${file_config:-"$VARS_FOR_INSTALL"}")"
     mkdir -p "$(dirname "${file_config}")" > /dev/null
-    # file_args="$(realpath -m "$(_join_path "${_a_path_wg}" "$(_add_current_dot "${file_args:=${def_file_args}}")")")"
-    # file_args="$(_add_current_dot "${file_args}")"
-    file_args="$(_add_current_dot "${file_args:=${def_file_args}}")"
+    file_args="$(_add_current_dot "${file_args}")"
     mkdir -p "$(dirname "${file_args}")" > /dev/null
     if [ -f "${file_args}" ]; then
         # shellcheck source=/dev/null
@@ -1999,27 +2001,22 @@ main() {
     #         mkdir -p "${path_file_args}" > /dev/null
     #     fi
     # fi
-    cmd=${cmd:=install}
-    # is_file_args пустая, если не задавали аргумент -c (--config)
-    if [ -z "${is_file_args}" ] || [ ! -f "${file_args}" ]; then
-        # local _a_is_debug=${_a_is_debug:=0}
-        # local _a_dry_run=${_a_dry_run:=0}
-        # local _a_use_ipv6=${_a_use_ipv6:=0}
-        # local _a_nic_name="${_a_nic_name:=${DEF_SERVER_WG_NIC}}"
-        local _a_path_wg="$(_add_current_dot "${_a_path_wg:=/etc/wireguard}")"
-        local temp_path="$(_join_path "${_a_path_wg}" "$(_add_current_dot "${_a_file_params:="$VARS_PARAMS"}")")"
+    cmd=${cmd:-install}
+    # is_file_args пустая, если не задавали аргумент -f (--file-args)
+    # if [ -z "${is_file_args}" ] || [ ! -f "${file_args}" ]; then
+        # Обрабатываем аргументы командной строки, которые сохраняются в файл аргументов
+        local _a_name_service="${_a_name_service:-wg}"
+        local _a_path_wg="$(_add_current_dot "${_a_path_wg:-/etc/wireguard}")"
+        local temp_path="$(_join_path "${_a_path_wg}" "$(_add_current_dot "${_a_file_params:-"$VARS_PARAMS"}")")"
         local _a_file_params="$(realpath -m "${temp_path}")"
-        local temp_path="$(_join_path "${_a_path_wg}" "$(_add_current_dot "${_a_file_hand_params:=${def_file_hand_params}}")")"
+        local temp_path="$(_join_path "${_a_path_wg}" "$(_add_current_dot "${_a_file_hand_params:-${def_file_hand_params}}")")"
         local _a_file_hand_params="$(realpath -m "${temp_path}")"
         local temp_path="$(_join_path "${_a_path_wg}" ".clients")"
-        local _a_path_out="$(realpath -m "$(_add_current_dot "${_a_path_out:=${temp_path}}")")"
-        local _a_file_rules_firewall="$(_add_current_dot "${_a_file_rules_firewall:=./iptables/default-iptables.rules}")"
-    fi
-    # set_var is_debug ${is_debug} ${_a_is_debug}
-    # set_var dry_run ${dry_run} ${_a_dry_run}
-    # set_var use_ipv6 ${use_ipv6} ${_a_use_ipv6}
-    # set_var nic_name "${nic_name}" "${_a_nic_name}"
+        local _a_path_out="$(realpath -m "$(_add_current_dot "${_a_path_out:-${temp_path}}")")"
+        local _a_file_rules_firewall="$(_add_current_dot "${_a_file_rules_firewall:-./iptables/default-iptables.rules}")"
+    # fi
     set_var keepalive "0" "${keepalive}"
+    set_var name_service "${name_service}" "${_a_name_service}"
     set_var path_wg "${path_wg}" "${_a_path_wg}"
     set_var file_params "${file_params}" "${_a_file_params}"
     set_var file_hand_params "${file_hand_params}" "${_a_file_hand_params}"
@@ -2035,6 +2032,7 @@ main() {
         dry_run=0
     fi
     list_all="${list_all:=0}"
+    #if [ -n "${is_update_file_args}" ] && [ "${is_update_file_args}" != "0" ] && [ "$cmd" != 'prepare' ]; then
     if [ -n "${is_update_file_args}" ] && [ "${is_update_file_args}" != "0" ]; then
         # file_args="$(_add_current_dot "${file_args:=${def_file_args}}")"
         # записать в файл аргументы текущего запуска
@@ -2049,6 +2047,7 @@ main() {
             printf "file_hand_params=%s\n" "${file_hand_params}"
             printf "path_out=%s\n" "${path_out}"
             printf "file_rules_firewall=%s\n" "${file_rules_firewall}"
+            printf "name_service=%s\n" "${name_service}"
         } > "${file_args}"
     fi
     # аргументы, которые не сохраняются, не имеют значений по-умолчанию и не настраиваются предварительно
@@ -2083,6 +2082,7 @@ main() {
     debug "dns_list____________: ${dns_list}"
     debug "list_all____________: ${list_all}"
     debug "keepalive___________: ${keepalive}"
+    debug "name_service________: ${name_service}"
     # создать каталоги
     local path_file_params="$(dirname "${file_params}")"
     debug "Создаем каталоги: ${path_wg} ; ${path_out} ; ${path_file_params}"
