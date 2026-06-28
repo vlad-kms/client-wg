@@ -9,13 +9,6 @@
 
 # shellcheck disable=SC2034
 NC='\033[0m'
-# RED='\033[0;31m'
-# GREEN='\033[0;32m'
-# ORANGE='\033[0;33m'
-# DARKBLUE='\033[34m'
-# PURPLE='\033[35m'
-# CYAN='\033[36m'
-# GRAY='\033[37m'
 
 DRED='\033[0;31m'
 DGREEN='\033[0;32m'
@@ -42,7 +35,6 @@ PURPLE="${LPURPLE}"
 RED="${DRED}"
 
 OS_RELEASE="/etc/os-release"
-# ARR_CMD=("install" "uninstall" "new" "prepare")
 ARR_CMD='install uninstall client prepare'
 ARR_NAME_SERVICE='wg awg'
 ACTION_CLIENT='a add new d del delete list l count c'
@@ -68,8 +60,6 @@ DEF_ALLOWED_IPS=0.0.0.0/0,::/0
 
 is_debug=0
 
-# path_wg=/etc/wireguard
-# path_wg=.
 file_sysctl='/etc/sysctl.d/wg.conf'
 def_file_hand_params="./hand_params.conf"
 file_args='./last-args.conf'
@@ -235,9 +225,7 @@ install_packages() {
     debug "install_packages BEGIN ==================================="
     local ttt="$@"
     debug "install_packages, args: ${ttt}"
-    # if [ -z "${ID}" ] || [ -z "{VERSION_ID}" ]; then
     if [ -z "${OS}" ] || [ -z "${VERSION_ID}" ]; then
-        # . "${OS_RELEASE}"
         local os_data="$(check_os 2)"
         OS="$(get_item_str "${os_data}" 'os')"
         VERSION_ID="$(get_item_str "${os_data}" 'version_id')"
@@ -256,7 +244,6 @@ install_packages() {
         if [ -n "${_cmd_}" ]; then
             debug "install_packages, выполняемая команда: ${_cmd_}"
             if [ -z "${dry_run}" ] || [ "${dry_run}" -eq "0" ]; then
-                # if ! "$@"; then
                 if [ -z "${is_debug}" ] || [ "${is_debug}" -eq "0" ]; then
                     ${_cmd_} > /dev/null
                 else
@@ -571,7 +558,6 @@ _rtrim() {
 # то добавить в начало ./
 _add_current_dot() {
     printf "$(echo "${1}" | sed -E 's/^(\.{1,2})$/\1\//; /^[^/]/!b; /^\.{1,2}\//!s/^/.\//')"
-    # printf "%s" "$(echo "${1}" | sed -E 's/^(\.{1,2})$/\1\//; /^[^/]/!b; /^\.{1,2}\//!s/^/.\//')"
 }
 
 # Сложить две части пути
@@ -581,8 +567,6 @@ _join_path() {
     # debug "ARGS: $args"
     if ! _startswith "$2" '/'; then
         local first="$(_rtrim "$1" '/')"
-        # local second="$(_ltrim "$2" '/')"
-        # local second="$(_ltrim "${second}" '/')"
         local res="${first}/${2}"
     else
         msg "Нельзя соединить каталоги $1 и $2, так как 2-й каталог является абсолютным"
@@ -597,11 +581,8 @@ _join_path() {
 # ${2} (обязательный) - имя файла для проверки
 # ${3} (не обязательный) - сообщение об ошибке, по-умолчанию: Невозможно найти файл ${2}
 check_file_exists() {
-    # local fn="${2}"
     local err_msg="${3}"
-    #err "Невозможно открыть файл с конфигурацией для установки WIREGUARD ${file_config}"
     local err_msg="${err_msg:=Невозможно найти файл ${2}}"
-    # local is_break_script="${1}"
     if [ ! -f "${2}" ]; then
         # нет файла
         if [ "${1}" = "0" ]; then
@@ -1107,8 +1088,9 @@ inst_iptables(){
             sed -i -En '/^#!/{:a; p; n; ba}' "${script_rules}" && sed -i '2,${/#!/d}' "${script_rules}"
             # добавить строку подключения файла с параметрами установки и доп.параметрами
             #sed -i -E "/^#\!\/bin\/.*$/a\. ${file_params}" "${script_rules}"
-            sed -i -E "1aif [ -f \"${_fp}\" \]\;  then \. \"${_fp}\"\;  fi" "${script_rules}"
-            sed -i -E "2aif [ -f \"${_fhp}\" \]\; then \. \"${_fhp}\"\; fi" "${script_rules}"
+            sed -i -E "1adir_conf=\"${_fp} ${_fhp}\"" "${script_rules}"
+            sed -i -E "2aif [ -f \"${_fp}\" \]\;  then \. \"${_fp}\"\;  fi" "${script_rules}"
+            sed -i -E "3aif [ -f \"${_fhp}\" \]\; then \. \"${_fhp}\"\; fi" "${script_rules}"
             #sed -i -E "3aif [ -n \"\${SERVER_WG_NIC}\" \] &&  ip l | grep -e \":\s*\${SERVER_WG_NIC}:\" >/dev/null\; then" "${script_rules}"
             #sed -i -E "4a\ \ if [ -n \"\${NFT_DNS_LOCALNET}\" \]\; then" "${script_rules}"
             #sed -i -E "5a\ \ \ \ if command -v resolvectl > /dev/null; then resolvectl dns \${SERVER_WG_NIC} \${NFT_DNS_LOCALNET}; fi" "${script_rules}"
