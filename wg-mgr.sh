@@ -1712,7 +1712,7 @@ client_action() {
         debug "dns_list: ${dns_list}"
         # сформировать ключи для клиента
         local _client_key_priv="$(wg genkey)"
-        local _client_key_pub="$(echo ${_client_key_priv} | wg pubkey)"
+        local _client_key_pub="$(echo "${_client_key_priv}" | wg pubkey)"
         local _client_key_pkey="$(wg genpsk)"
         # создать файл для клиента
         local clnt_cfg="$(_join_path "${path_out}" "${_name}-client.conf")"
