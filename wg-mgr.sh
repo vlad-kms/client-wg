@@ -1,8 +1,9 @@
 #!/bin/sh
-# shellcheck disable=SC2329
 # shellcheck disable=SC2059
-# shellcheck disable=SC3043
+# shellcheck disable=SC2124
 # shellcheck disable=SC2155
+# shellcheck disable=SC2329
+# shellcheck disable=SC3043
 
 # TODO Разобраться с DNS в Alpine linux. Пока в Alpine чистый список DNS для интерфейса сервера
 
@@ -150,6 +151,7 @@ show_help() {
 msg() {
     [ -z "$1" ] && return
     local mess="$@"
+    # local mess=$*
     color_b=${2}
     color_b=${color_b:=$ORANGE}
     color_e=${NC}
@@ -236,7 +238,7 @@ install_packages() {
     # if [ -z "${ID}" ] || [ -z "{VERSION_ID}" ]; then
     if [ -z "${OS}" ] || [ -z "${VERSION_ID}" ]; then
         # . "${OS_RELEASE}"
-        local os_data=$(check_os 2)
+        local os_data="$(check_os 2)"
         OS="$(get_item_str "${os_data}" 'os')"
         VERSION_ID="$(get_item_str "${os_data}" 'version_id')"
     fi
@@ -280,7 +282,7 @@ install_packages() {
 restart_wg() {
     debug "restart_wg BEGIN ==================================="
     if [ -z "${OS}" ] || [ -z "${VERSION_ID}" ]; then
-        local os_data=$(check_os 2)
+        local os_data="$(check_os 2)"
         OS="$(get_item_str "${os_data}" 'os')"
     fi
     local _sn='wg-quick'
@@ -310,7 +312,10 @@ _endswith() {
 
 _validate_int() {
     if [ -z "$1" ] || [ "$1" = "0" ]; then return 0; fi
+    # shellcheck disable=SC2003
+    # shellcheck disable=SC2086
     r=$(expr 0 + $1 2>/dev/null)
+    # shellcheck disable=SC2181
     if [ "$?" = "0" ]; then return 0; fi
     #if expr 0 + $v 2>/dev/null >&2; then return 0; fi
     return 1
@@ -335,7 +340,7 @@ check_os() {
     debug "check_os BEGIN ==================="
     debug "check_os args: $*"
     debug "check_os args: $*"
-    if [ -z "$@" ] || [ "${1}" = "0" ]; then
+    if [ -z "$*" ] || [ "${1}" = "0" ]; then
         # выводить сообщение как ошибку, красным цветом
         local is_out_err=0
     elif [ "${1}" = "1" ]; then
@@ -376,7 +381,7 @@ check_os() {
             local res_exit=1
         fi
     # elif [ -e '/etc/alpine-release' ]; then
-    elif [ "${OS}" == "alpine" ]; then
+    elif [ "${OS}" = "alpine" ]; then
         # OS=alpine
         # установить требуемые пакеты
         # проверить что установлен coreutils, и если нет, то добавть в список устанавливаемых пакетов
@@ -648,6 +653,8 @@ _question() {
     local _title_="$1"
     # Проверить, что опция -e поддерживается у read и подготовить к запуску read
     {
+        # shellcheck disable=SC2162
+        # shellcheck disable=SC3045
         echo "test" | read -e _check > /dev/null 2>&1
     } > /dev/null 2>&1
     local t=$?
@@ -660,6 +667,9 @@ _question() {
         [ -n "${3}" ] && local _title_="${_title_} (default ${2})"
     fi
     # запросить
+    # shellcheck disable=SC2229
+    # shellcheck disable=SC2086
+    # shellcheck disable=SC3045
     read -rp "${_title_}: " $is_opt_e $is_opt_i res_var
     printf "%s" "${res_var}"
     debug "_question END ==========================="
@@ -684,11 +694,11 @@ check_ipv4_addr() {
         # НЕ валидный адрес
         return 1
     fi
-    if [ "${res}" = "0" ];then
-        return 1
-    else
-        return 0
-    fi
+    # if [ "${res}" = "0" ];then
+    #     return 1
+    # else
+    #     return 0
+    # fi
 }
 
 # Проверить что строка является валидной маской IPv4 (число 0-32)
@@ -780,8 +790,8 @@ get_ip_mask_4() {
         local flag_use_def=1
     fi
     # разделить на ip адрес и маску (ipv4/mask)
-    local ip=$(echo "${ip_full}"   | sed -En "s/^[^0-9/]*([0-9.]*)(\/([0-9]*)|[^/]?).*$/\1/p")
-    local mask=$(echo "${ip_full}" | sed -En "s/^[^0-9/]*([0-9.]*)(\/([0-9]*)|[^/]?).*$/\3/p")
+    local ip="$(echo "${ip_full}"   | sed -En "s/^[^0-9/]*([0-9.]*)(\/([0-9]*)|[^/]?).*$/\1/p")"
+    local mask="$(echo "${ip_full}" | sed -En "s/^[^0-9/]*([0-9.]*)(\/([0-9]*)|[^/]?).*$/\3/p")"
     # Проверить что это ip
     # is_ipv4=$(check_ipv4_addr "${ip}")
     # if [ "${is_ipv4}" -eq "0" ]; then
@@ -817,7 +827,7 @@ get_ip_mask_4() {
 #      если он отсутствует или   равен 0, то подстановок не будет и вместо ошибочного элемента будет возвращаться "" (пустая строка)
 # Возвращает строку в формате 'ip=[addr_ipv6]; mask=[mask_ipv6]'
 get_ip_mask_6() {
-    local ip_full=$1
+    local ip_full="$1"
     local args="$@"
     # debug "get_ip_mask_6 BEGIN ================================"
     # debug "ARGS: ${args}"
@@ -828,8 +838,8 @@ get_ip_mask_6() {
         local flag_use_def=1
     fi
     # разделить на ip адрес и маску (ipv4/mask)
-    local ip=$(echo "${ip_full}"   | sed -En "s/^[^${si6}/]*([${si6}]*)(\/([0-9]*)|[^/]?).*$/\1/p")
-    local mask=$(echo "${ip_full}" | sed -En "s/^[^${si6}/]*([${si6}]*)(\/([0-9]*)|[^/]?).*$/\3/p")
+    local ip="$(echo "${ip_full}"   | sed -En "s/^[^${si6}/]*([${si6}]*)(\/([0-9]*)|[^/]?).*$/\1/p")"
+    local mask="$(echo "${ip_full}" | sed -En "s/^[^${si6}/]*([${si6}]*)(\/([0-9]*)|[^/]?).*$/\3/p")"
     # local is_ipv6="$(check_ipv6_addr "${ip}")"
     if ! check_ipv6_addr "${ip}" > /dev/null; then
         if [ "${flag_use_def}" = "1" ]; then
@@ -1026,7 +1036,7 @@ INST_SERVER_PRIV_KEY=${_priv_key}"
         # WIREGUARD SERVER PUBLIC KEY
         # debug "PUBLIC_KEY: $(echo ${_priv_key} | wg pubkey)"
         s_config="${s_config}
-INST_SERVER_PUB_KEY=$(echo ${_priv_key} | wg pubkey)"
+INST_SERVER_PUB_KEY=$(echo "${_priv_key}" | wg pubkey)"
         # printf "INST_SERVER_PUB_KEY=$(echo ${_priv_key} | wg pubkey)\n" >> "${file_config}"
     else
         # WIREGUARD SERVER PRIVATE KEY
@@ -1147,7 +1157,7 @@ wg_install() {
         err "В файле ${file_config} или при вводе не указан внешний сетевой интерфейс";
         exit 1
     fi
-    if ! ip link show ${INST_SERVER_PUB_NIC} > /dev/null 2>&1; then
+    if ! ip link show "${INST_SERVER_PUB_NIC}" > /dev/null 2>&1; then
         err "В файле ${file_config} или при вводе указан неверный внешний сетевой интерфейс ${INST_SERVER_PUB_NIC}";
         exit 1
     fi
@@ -1156,9 +1166,9 @@ wg_install() {
     # 2. Если пустой вывод, то нет IPv4. Поэтому берем IPv6 вывод из ip -6 addr show
     # 3. _ip_dev_pub_ - это адрес IPv4 или IPv6
     if [ -z "${INST_SERVER_PUB_IP}" ]; then
-        local _ip_dev_pub_=$(ip -4 addr show "${INST_SERVER_PUB_NIC}" | sed -nE 's/^.*\sinet\s([^/]*)\/.*\sscope global.*$/\1/p' | awk '{print $1}' | head -1)
+        local _ip_dev_pub_="$(ip -4 addr show "${INST_SERVER_PUB_NIC}" | sed -nE 's/^.*\sinet\s([^/]*)\/.*\sscope global.*$/\1/p' | awk '{print $1}' | head -1)"
         if [ -z "${_ip_dev_pub_}" ]; then
-            local _ip_dev_pub_=$(ip -6 addr show "${INST_SERVER_PUB_NIC}" | sed -nE 's|^.*\sinet6\s([^/]*)/.*\sscope global.*$|\1|p' | awk '{print $1}' | head -1)
+            local _ip_dev_pub_="$(ip -6 addr show "${INST_SERVER_PUB_NIC}" | sed -nE 's|^.*\sinet6\s([^/]*)/.*\sscope global.*$|\1|p' | awk '{print $1}' | head -1)"
         fi
         title_quest="Публичный IPv4 или IPv6 сервера"
         INST_SERVER_PUB_IP=$(_question "${title_quest}" "${_ip_dev_pub_}")
@@ -1184,11 +1194,11 @@ wg_install() {
         local _IP_="${ipv4}"
     fi
     if [ -z "${_IP_}" ]; then
-        local _IP_=$(_question "ОБЯЗАТЕЛЬНО! IPv4 адрес интерфейса сервера wireguard" "${DEF_SERVER_WG_IPV4}/${DEF_SERVER_WG_IPV4_MASK}" "1")
+        local _IP_="$(_question "ОБЯЗАТЕЛЬНО! IPv4 адрес интерфейса сервера wireguard" "${DEF_SERVER_WG_IPV4}/${DEF_SERVER_WG_IPV4_MASK}" "1")"
     fi
     INST_SERVER_WG_IPV4="${_IP_}"
-    local ipv4_mask=$(get_ip_mask_4 "${INST_SERVER_WG_IPV4}" "${DEF_SERVER_WG_IPV4}" "${DEF_SERVER_WG_IPV4_MASK}" "1")
-    local is_digit=$(echo "${ipv4_mask}" | sed -En '/^.*[0-9./].*$/p')
+    local ipv4_mask="$(get_ip_mask_4 "${INST_SERVER_WG_IPV4}" "${DEF_SERVER_WG_IPV4}" "${DEF_SERVER_WG_IPV4_MASK}" "1")"
+    local is_digit="$(echo "${ipv4_mask}" | sed -En '/^.*[0-9./].*$/p')"
     if [ -n "${ipv4_mask}" ] && [ -n "${is_digit}" ]; then
         # есть IPv4
         INST_SERVER_WG_IPV4=$(echo "${ipv4_mask}" | sed -En 's/^.*ip\s*=\s*([0-9.]+).*$/\1/p')
@@ -1201,11 +1211,11 @@ wg_install() {
             local _IP_="${ipv6}"
         fi
         if [ -z "${_IP_}" ]; then
-            local _IP_=$(_question "ОБЯЗАТЕЛЬНО! IPv6 адреса интерфейса сервера wireguard" "${DEF_SERVER_WG_IPV6}/${DEF_SERVER_WG_IPV6_MASK}" "1")
+            local _IP_="$(_question "ОБЯЗАТЕЛЬНО! IPv6 адреса интерфейса сервера wireguard" "${DEF_SERVER_WG_IPV6}/${DEF_SERVER_WG_IPV6_MASK}" "1")"
         fi
         INST_SERVER_WG_IPV6="${_IP_}"
-        local ipv6_mask=$(get_ip_mask_6 "${INST_SERVER_WG_IPV6}" "${DEF_SERVER_WG_IPV6}" "${DEF_SERVER_WG_IPV6_MASK}" "1")
-        local is_digit=$(echo "${ipv6_mask}" | sed -En '/^.*[0-9a-fA-F:].*$/p')
+        local ipv6_mask="$(get_ip_mask_6 "${INST_SERVER_WG_IPV6}" "${DEF_SERVER_WG_IPV6}" "${DEF_SERVER_WG_IPV6_MASK}" "1")"
+        local is_digit="$(echo "${ipv6_mask}" | sed -En '/^.*[0-9a-fA-F:].*$/p')"
         if [ -n "${ipv6_mask}" ] && [ -n "${is_digit}" ]; then
             # есть ipv6
             INST_SERVER_WG_IPV6="$(echo "${ipv6_mask}" | sed -En 's/^.*ip\s*=\s*([0-9a-fA-F:]+).*$/\1/p')"
@@ -1487,6 +1497,7 @@ check_can_managed_client() {
     local _file_wg="$2"
     if [ -n "$1" ]; then
         # имя клиента не пустое
+        # shellcheck disable=SC2046
         local _s=$(awk -v v1="${_btc}" -v v2="${_etc}" '
             $0 ~ v1 {last_begin = $3; last_str = $3"; "$4}
             $0 ~ v2  && last_begin == $4 {count++; print count") "last_str}
@@ -1864,7 +1875,7 @@ main() {
         shift
     fi
     # Проверить на допустимость команды, она должна быть одной из списка ARR_CMD
-    local l_cmd=$(echo " ${ARR_CMD} " | sed -rn "s/.*( $cmd ).*/\1/p" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    local l_cmd="$(echo " ${ARR_CMD} " | sed -rn "s/.*( $cmd ).*/\1/p" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
     if [ -z "${l_cmd}" ]; then
         err "Неверная команда: ${cmd}"
         show_help
@@ -2053,7 +2064,7 @@ main() {
     # аргументы, которые не сохраняются, не имеют значений по-умолчанию и не настраиваются предварительно
     if [ "${cmd}" = "client" ]; then
         # проверить на валидность action для cmd client
-        local l_act=$(echo " ${ACTION_CLIENT} " | sed -rn "s/.*( $action ).*/\1/p" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        local l_act="$(echo " ${ACTION_CLIENT} " | sed -rn "s/.*( $action ).*/\1/p" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
         if [ -z "${l_act}" ]; then
             err "Неверный аргумент --action ( or -a ) ${action}"
             show_help
