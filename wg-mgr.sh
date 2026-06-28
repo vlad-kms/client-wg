@@ -1424,10 +1424,14 @@ wg_install() {
     {
         printf "### MAC адрес шлюза провайдера VPS\n"
         printf "PROVIDER_GW_MAC=08:05:e2:fa:07:f0\n"
+        printf "### IP адрес шлюза провайдера VPS,\n"
+        printf "### можно указать вручную, если он не определяется автоматически в процессе работы cкрипта\n"
+        printf "# PROVIDER_GW_IP=\n"
         printf "### параметр для файла nft.rules, используется для указания counter в правилах nftables\n"
         printf "NFT_COUNTER=counter\n"
         printf "### IP сети, которые будут натиться\n"
-        printf "NFT_NAT_NET=\"192.168.15.0/24, 192.168.16.0/24,192.168.25.0/24,192.168.26.0/24\"\n"
+        printf "# NFT_NAT_NET=\"192.168.15.0/24, 192.168.16.0/24,192.168.25.0/24,192.168.26.0/24\"\n"
+        printf "NFT_NAT_NET=\"\"\n"
         printf "### Список доверенных адресов из ИНЕТ'а\n"
         printf "NFT_LIST_TRUSN_WAN='cl.vpn.mrovo.ru, cl-ang.vpn.mrovo.ru'\n"
         printf "### Список доверенных адресов из LAN'ов\n"
@@ -1439,9 +1443,9 @@ wg_install() {
         printf "### Список адресов, которым запрещен доступ к INET'у\n"
         printf "NFT_LIST_INET_DROP=\n"
         printf "### DNS сервер локальной сети\n"
-        printf "#NFT_DNS_LOCALNET=192.168.15.1\n"
+        printf "# NFT_DNS_LOCALNET=192.168.15.1\n"
         printf "### DNS домены поиска для локальной сети\n"
-        printf "#NFT_SEARCH_DOMAIN_LOCALNET=\"domain1.qq domain2.df\"\n"
+        printf "# NFT_SEARCH_DOMAIN_LOCALNET=\"domain1.qq domain2.df\"\n"
     } >> "${file_hand_params}"
     # работа с настройками для iptables
     if which iptables > /dev/null 2>&1; then
