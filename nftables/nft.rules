@@ -149,6 +149,9 @@ get_rule_element_set() {
 
 # ==================================================================================================================================================
 init_nft() {
+DEFAULT_ROUTE=""
+#PROVIDER_GW_MAC=""
+
   cat > "$tmpfile" << EOF
 # сделать цепочки без хуков, т.е. вызываемые из соответствующих стандартных с хуками
 
@@ -156,8 +159,10 @@ init_nft() {
 add table arp $awg_table_arp
 add chain arp $awg_table_arp input  { type filter hook input priority filter - $awg_priority; policy drop; }
 add chain arp $awg_table_arp output { type filter hook output priority filter - $awg_priority; policy accept; }
-  # Разрешаем ARP-ответы ТОЛЬКО от легитимного шлюза провайдера
-add rule arp $awg_table_arp input iifname "$SERVER_PUB_NIC" arp saddr ip $DEFAULT_ROUTE arp saddr ether ${PROVIDER_GW_MAC} accept comment "Разрешить только от шлюза провайдера"
+$(if [ -n "$DEFAULT_ROUTE" ] && [ -n "${PROVIDER_GW_MAC}" ]; then \
+  echo "# Разрешаем ARP-ответы ТОЛЬКО от легитимного шлюза провайдера"; \
+  echo "add rule arp $awg_table_arp input iifname \"$SERVER_PUB_NIC\" arp saddr ip \"$DEFAULT_ROUTE\" arp saddr ether \"${PROVIDER_GW_MAC}\" accept comment \"Разрешить только от шлюза провайдера\""; \
+fi)
   # Разрешаем ЛЮБЫЕ входящие ARP-запросы к нашему серверу (чтобы другие видели нас)
   # Но ЗАПРЕЩАЕМ входящие ARP-ответы (reply) от кого-либо, кроме шлюза из п.1
 add rule arp $awg_table_arp input iifname "$SERVER_PUB_NIC" arp operation request accept comment "Разрешаем ARP-запросы к нам"
@@ -424,7 +429,8 @@ fi
 DEFAULT_ROUTE="$(ip r | grep 'default' | grep -o 'via [0-9.]*' | awk '{print $2}')"
 DEFAULT_ROUTE="${DEFAULT_ROUTE:-$PROVIDER_GW_IP}"
 
-required_vars="SERVER_PUB_NIC SERVER_WG_NIC SERVER_PORT SSH_PORT PROVIDER_GW_MAC DEFAULT_ROUTE"
+# required_vars="SERVER_PUB_NIC SERVER_WG_NIC SERVER_PORT SSH_PORT PROVIDER_GW_MAC DEFAULT_ROUTE"
+required_vars="SERVER_PUB_NIC SERVER_WG_NIC SERVER_PORT SSH_PORT"
 missing_vars=""
 for var in $required_vars; do
   if [ -z "${!var:-}" ]; then
