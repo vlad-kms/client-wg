@@ -28,19 +28,19 @@ name_set_awg_trust_vpn=awg_trust_vpn
 family=inet
 awg_priority=10
 
-awg_counter="${NFT_COUNTER:-}"
+awg_counter="${NFT_COUNTER}"
 
 predefined_rule_0="iif \"lo\" ${awg_counter} accept "
 predefined_rule_1="ct state established,related ${awg_counter} accept"
 predefined_rule_2="ct state invalid ${awg_counter} drop"
 
-trust_wan="${NFT_LIST_TRUST_WAN:-cl.vpn.mrovo.ru, cl-ang.vpn.mrovo.ru}"
-trust_vpn="${NFT_LIST_TRUST_VPN:-192.168.15.202, 10.9.8.2, 10.9.8.3, 10.9.8.4, 10.9.8.5, 10.9.8.6, 10.9.8.7}"
+trust_wan="${NFT_LIST_TRUST_WAN}"
+trust_vpn="${NFT_LIST_TRUST_VPN}"
 nat_net="${NFT_NAT_NET}"
 nat_net="$WG_NET $(if [ -n "${nat_net}" ]; then echo ", ${nat_net}"; fi)"
-nat_inet_drop="${NFT_LIST_INET_DROP:-""}"
-awg_vpn="${NFT_LIST_VPN:-""}"
-awg_vpn_only="${NFT_LIST_VPN_ONLY:-""}"
+nat_inet_drop="${NFT_LIST_INET_DROP}"
+awg_vpn="${NFT_LIST_VPN}"
+awg_vpn_only="${NFT_LIST_VPN_ONLY}"
 
 mark_only_inet=120
 mark_only_vpn=110
