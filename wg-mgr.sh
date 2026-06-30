@@ -630,7 +630,6 @@ set_mode() {
 _question() {
     debug "_question BEGIN ========================"
     # debug "_question args: '$@'"
-    # local res_var=''
     local _title_="$1"
     # Проверить, что опция -e поддерживается у read и подготовить к запуску read
     {
@@ -675,11 +674,6 @@ check_ipv4_addr() {
         # НЕ валидный адрес
         return 1
     fi
-    # if [ "${res}" = "0" ];then
-    #     return 1
-    # else
-    #     return 0
-    # fi
 }
 
 # Проверить что строка является валидной маской IPv4 (число 0-32)
@@ -774,10 +768,6 @@ get_ip_mask_4() {
     local ip="$(echo "${ip_full}"   | sed -En "s/^[^0-9/]*([0-9.]*)(\/([0-9]*)|[^/]?).*$/\1/p")"
     local mask="$(echo "${ip_full}" | sed -En "s/^[^0-9/]*([0-9.]*)(\/([0-9]*)|[^/]?).*$/\3/p")"
     # Проверить что это ip
-    # is_ipv4=$(check_ipv4_addr "${ip}")
-    # if [ "${is_ipv4}" -eq "0" ]; then
-    #     ip="${DEF_SERVER_WG_IPV4}"
-    # fi
     if ! check_ipv4_addr "${ip}" > /dev/null; then
         if [ "${flag_use_def}" = "1" ]; then
             local ip="${2}"
@@ -785,8 +775,6 @@ get_ip_mask_4() {
             local ip=""
         fi
     fi
-    # is_ipv4_mask=$(check_ipv4_mask "${mask}")
-    # if [ "${is_ipv4_mask}" = "0" ]; then
     if ! check_ipv4_mask "${mask}"; then
         if [ "${flag_use_def}" = "1" ]; then
             mask="${3}"
@@ -821,7 +809,6 @@ get_ip_mask_6() {
     # разделить на ip адрес и маску (ipv4/mask)
     local ip="$(echo "${ip_full}"   | sed -En "s/^[^${si6}/]*([${si6}]*)(\/([0-9]*)|[^/]?).*$/\1/p")"
     local mask="$(echo "${ip_full}" | sed -En "s/^[^${si6}/]*([${si6}]*)(\/([0-9]*)|[^/]?).*$/\3/p")"
-    # local is_ipv6="$(check_ipv6_addr "${ip}")"
     if ! check_ipv6_addr "${ip}" > /dev/null; then
         if [ "${flag_use_def}" = "1" ]; then
             # local ip="${DEF_SERVER_WG_IPV6}"
@@ -830,8 +817,6 @@ get_ip_mask_6() {
             local ip=""
         fi
     fi
-    # local is_ipv6_mask=$(check_ipv6_mask "${mask}")
-    # if [ "${is_ipv6_mask}" = "0" ]; then
     if ! check_ipv6_mask "${mask}"; then
         if [ "${flag_use_def}" = "1" ]; then
             # local mask="${DEF_SERVER_WG_IPV6_MASK}"
@@ -969,7 +954,6 @@ wg_prepare_file_config() {
     INST_SERVER_PUB_NIC=$(ip route | grep default | sed -E 's/.*\sdev\s*([a-zA-Z0-9]*)\s.*/\1/')
     # INST_SERVER_PUB_NIC=$(_question "Внешний интерфейс" "${INST_SERVER_PUB_NIC}")
     s_config="INST_SERVER_PUB_NIC=${INST_SERVER_PUB_NIC}"
-    # printf "INST_SERVER_PUB_NIC=%s\n" "${INST_SERVER_PUB_NIC}" > "${file_config}"
     # публичный адрес сервера
     INST_SERVER_PUB_IP=$(ip -4 addr show "$INST_SERVER_PUB_NIC" | sed -nE 's|^.*\sinet\s([^/]*)/.*\sscope global.*$|\1|p') # | awk '{print $1}' | head -1)
     if [ -z "${INST_SERVER_PUB_IP}" ]; then
@@ -977,66 +961,43 @@ wg_prepare_file_config() {
     fi
     s_config="${s_config}
 INST_SERVER_PUB_IP=${INST_SERVER_PUB_IP}"
-    # printf "INST_SERVER_PUB_IP=%s\n" "${INST_SERVER_PUB_IP}" >> "${file_config}"
     # WIREGUARD interface NIC
     s_config="${s_config}
 INST_SERVER_WG_NIC=${INST_SERVER_WG_NIC:=${DEF_SERVER_WG_NIC}}"
-    # printf "INST_SERVER_WG_NIC=%s\n" "${INST_SERVER_WG_NIC:=${DEF_SERVER_WG_NIC}}" >> "${file_config}"
     # WIREGUARD SERVER IPv4/MASK
-    # if [ -n "${ipv4}" ]; then
-    #     local _ip_="${ipv4}"
-    # else
-    #     local _ip_="${DEF_SERVER_WG_IPV4}/${DEF_SERVER_WG_IPV4_MASK}"
-    # fi
-    # printf "INST_SERVER_WG_IPV4=${_ip_}\n" >> "${file_config}"
     s_config="${s_config}
 INST_SERVER_WG_IPV4=${INST_SERVER_WG_IPV4:=${DEF_SERVER_WG_IPV4}}/${INST_SERVER_WG_IPV4_MASK:=${DEF_SERVER_WG_IPV4_MASK}}"
-    # printf "INST_SERVER_WG_IPV4=${INST_SERVER_WG_IPV4:=${DEF_SERVER_WG_IPV4}}/${INST_SERVER_WG_IPV4_MASK:=${DEF_SERVER_WG_IPV4_MASK}}\n" >> "${file_config}"
     # WIREGUARD SERVER IPv6/MASK
-    # if [ -n "${ipv6}" ]; then
-    #     local _ip_="${ipv6}"
-    # else
-    #     local _ip_="${DEF_SERVER_WG_IPV6}/${DEF_SERVER_WG_IPV6_MASK}"
-    # fi
-    # printf "INST_SERVER_WG_IPV6=${_ip_}\n" >> "${file_config}"
     s_config="${s_config}
 INST_SERVER_WG_IPV6=${INST_SERVER_WG_IPV6:=${DEF_SERVER_WG_IPV6}}/${INST_SERVER_WG_IPV6_MASK:=${DEF_SERVER_WG_IPV6_MASK}}"
-    # printf "INST_SERVER_WG_IPV6=${INST_SERVER_WG_IPV6:=${DEF_SERVER_WG_IPV6}}/${INST_SERVER_WG_IPV6_MASK:=${DEF_SERVER_WG_IPV6_MASK}}\n" >> "${file_config}"
     # WIREGUARD SERVER PORT
     RANDOM_PORT=$(shuf -i49152-65535 -n1)
     s_config="${s_config}
 INST_SERVER_PORT=${RANDOM_PORT}"
-    # printf "INST_SERVER_PORT=${RANDOM_PORT}\n" >> "${file_config}"
     # PRIVATE and PUBLIC KEY SERVER
     if command -v wg > /dev/null 2>&1; then
         # WIREGUARD SERVER PRIVATE KEY
         _priv_key=$(wg genkey)
         s_config="${s_config}
 INST_SERVER_PRIV_KEY=${_priv_key}"
-        # printf "INST_SERVER_PRIV_KEY=${_priv_key}\n" >> "${file_config}"
         # WIREGUARD SERVER PUBLIC KEY
         # debug "PUBLIC_KEY: $(echo ${_priv_key} | wg pubkey)"
         s_config="${s_config}
 INST_SERVER_PUB_KEY=$(echo "${_priv_key}" | wg pubkey)"
-        # printf "INST_SERVER_PUB_KEY=$(echo ${_priv_key} | wg pubkey)\n" >> "${file_config}"
     else
         # WIREGUARD SERVER PRIVATE KEY
         s_config="${s_config}
 INST_SERVER_PRIV_KEY="
-        # printf "INST_SERVER_PRIV_KEY=\n" >> "${file_config}"
         # WIREGUARD SERVER PUBLIC KEY
         s_config="${s_config}
 INST_SERVER_PUB_KEY="
-        # printf "INST_SERVER_PUB_KEY=\n" >> "${file_config}"
     fi
     # FIRST DNS FOR CLIENT 
     s_config="${s_config}
 INST_CLIENT_DNS=${dns_list:=${DEF_CLIENT_DNS}}"
-    # printf "INST_CLIENT_DNS=${dns_list:=${DEF_CLIENT_DNS}}\n" >> "${file_config}"
     # Разрешенные адреса для клиента
     s_config="${s_config}
 INST_ALLOWED_IPS=${client_allowed_ips:=${DEF_ALLOWED_IPS}}"
-    # printf "INST_ALLOWED_IPS=${client_allowed_ips:=${DEF_ALLOWED_IPS}}\n" >> "${file_config}"
     #
     [ "$is_debug" -ne "0" ] && {
         cat "${file_config}" | while read -r line; do
@@ -1087,22 +1048,13 @@ inst_iptables(){
             # удалить строки до первого ШЕБАНГА и удалить все остальные ШЕБАНГИ в файле
             sed -i -En '/^#!/{:a; p; n; ba}' "${script_rules}" && sed -i '2,${/#!/d}' "${script_rules}"
             # добавить строку подключения файла с параметрами установки и доп.параметрами
-            #sed -i -E "/^#\!\/bin\/.*$/a\. ${file_params}" "${script_rules}"
-            sed -i -E "1adir_conf=\"${_fp} ${_fhp}\"" "${script_rules}"
-            sed -i -E "2aif [ -f \"${_fp}\" \]\;  then \. \"${_fp}\"\;  fi" "${script_rules}"
-            sed -i -E "3aif [ -f \"${_fhp}\" \]\; then \. \"${_fhp}\"\; fi" "${script_rules}"
-            #sed -i -E "3aif [ -n \"\${SERVER_WG_NIC}\" \] &&  ip l | grep -e \":\s*\${SERVER_WG_NIC}:\" >/dev/null\; then" "${script_rules}"
-            #sed -i -E "4a\ \ if [ -n \"\${NFT_DNS_LOCALNET}\" \]\; then" "${script_rules}"
-            #sed -i -E "5a\ \ \ \ if command -v resolvectl > /dev/null; then resolvectl dns \${SERVER_WG_NIC} \${NFT_DNS_LOCALNET}; fi" "${script_rules}"
-            #sed -i -E "6a\ \ \ \ if command -v resolvectl > /dev/null; then resolvectl domain \${SERVER_WG_NIC} home.lan klinika.lan; fi" "${script_rules}"
-            #sed -i -E "7a\ \ fi" "${script_rules}"
-            #sed -i -E "8afi" "${script_rules}"
+            sed -i -E "1a# dir_conf используется только для вывода в тексте ошибки" "${script_rules}"
+            sed -i -E "2adir_conf=\"${_fp} ${_fhp}\"" "${script_rules}"
+            sed -i -E "3aif [ -f \"${_fp}\" \]\;  then \. \"${_fp}\"\;  fi" "${script_rules}"
+            sed -i -E "4aif [ -f \"${_fhp}\" \]\; then \. \"${_fhp}\"\; fi" "${script_rules}"
 
             printf "PostUp=${script_rules} add\n" >> "${FILE_CONF_WG}"
             printf "PostDown=${script_rules} delete\n" >> "${FILE_CONF_WG}"
-            # sed -i -r "s/^\s*(server_port\s*=\s*)[^ \t\n\r]+?(.*)$/\1${SERVER_PORT}\2/g" "${script_rules}"
-            # sed -i -r "s/^\s*(server_pub_nic\s*=\s*)[^ \t\n\r]+?(.*)$/\1${SERVER_PUB_NIC}\2/g" "${script_rules}"
-            # sed -i -r "s/^\s*(server_wg_nic\s*=\s*)[^ \t\n\r]+?(.*)$/\1${SERVER_WG_NIC}\2/g" "${script_rules}"
             chmod +x "${script_rules}"
             local result=0
         else
@@ -1111,7 +1063,6 @@ inst_iptables(){
             err "Настройте firewall вручную"
         fi
     fi
-    # sed -i -r 's/^\s*(server_port\s*=\s*)[^ \t\n\r]+?(.*)$/\1ert\2/g' 
     debug "inst_iptables END"
     return $result
 }
@@ -1248,15 +1199,10 @@ wg_install() {
     # установка WIREGUARD
     # shellcheck disable=SC2235
     if [ "${OS}" = 'ubuntu' ] || ([ "${OS}" = 'debian' ] && [ "${VERSION_ID}" -gt "10" ]); then
-        # apt-get update > /dev/null 2>&1
-        # exec_cmd apt-get update
-        # exit
-        # install_packages apt-get install -y wireguard iptables systemd-resolved qrencode
         install_packages wireguard iptables systemd-resolved qrencode ipcalc
     elif [ "${OS}" = 'alpine' ]; then
         # apk update > /dev/null 2>&1
         # exec_cmd apk update
-        # install_packages apk add wireguard-tools iptables libqrencode-tools
         install_packages wireguard-tools iptables libqrencode-tools ipcalc
         # TODO Разобраться с DNS в Alpine linux. Пока в Alpine чистый список DNS для интерфейса сервера
         # INST_CLIENT_DNS=
@@ -1307,18 +1253,6 @@ wg_install() {
     fi
 
     # Сохранить параметры WireGuard
-    # printf "SERVER_PUB_NIC=%s\n" "${INST_SERVER_PUB_NIC}"  > "${file_params}"
-    # printf "SERVER_PUB_IP=%s\n"  "${INST_SERVER_PUB_IP}"  >> "${file_params}"
-    # printf "SERVER_WG_NIC=%s\n"  "${INST_SERVER_WG_NIC}"  >> "${file_params}"
-    # printf "SERVER_WG_IPV4=%s\n" "${INST_SERVER_WG_IPV4}" >> "${file_params}"
-    # printf "SERVER_WG_IPV4_MASK=%s\n" "${INST_SERVER_WG_IPV4_MASK}" >> "${file_params}"
-    # printf "SERVER_WG_IPV6=%s\n" "${INST_SERVER_WG_IPV6}" >> "${file_params}"
-    # printf "SERVER_WG_IPV6_MASK=%s\n" "${INST_SERVER_WG_IPV6_MASK}" >> "${file_params}"
-    # printf "SERVER_PORT=%s\n" "${INST_SERVER_PORT}" >> "${file_params}"
-    # printf "SERVER_PRIV_KEY=%s\n" "${INST_SERVER_PRIV_KEY}" >> "${file_params}"
-    # printf "SERVER_PUB_KEY=%s\n"  "${INST_SERVER_PUB_KEY}"  >> "${file_params}"
-    # printf "CLIENT_DNS=%s\n" "${INST_CLIENT_DNS}"   >> "${file_params}"
-    # printf "ALLOWED_IPS=%s\n" "${INST_ALLOWED_IPS}" >> "${file_params}"
     {
         printf "SERVER_PUB_NIC=%s\n" "${INST_SERVER_PUB_NIC}"
         printf "SERVER_PUB_IP=%s\n"  "${INST_SERVER_PUB_IP}"
@@ -1360,16 +1294,7 @@ wg_install() {
     if [ -n "${c2}" ] && ([ -z "${dry_run}" ] || [ "${dry_run}" = "0" ]); then
         printf "${c2}\n" >> "${file_sysctl}"
     fi
-    # if [ -z "${dry_run}" ] || [ "${dry_run}" -eq "0" ]; then
-    #     echo "net.ipv4.ip_forward = 1" > "${file_sysctl}"
-    #     echo "net.ipv6.conf.all.forwarding = 1" >> "${file_sysctl}"
-    # else
-    #     exec_cmd echo "net.ipv4.ip_forward = 1 > ${file_sysctl}"
-    #     exec_cmd echo "net.ipv6.conf.all.forwarding = 1 >> ${file_sysctl}"
-    # fi
     # Файл конфигурации WIREGUARD
-    # FILE_CONF_WG="${path_wg}/${SERVER_WG_NIC}.conf"
-    # FILE_CONF_WG="$(_join_path "${path_wg}" "${SERVER_WG_NIC}.conf")"
     FILE_CONF_WG="$(realpath -m "$(_join_path "${path_wg}" "${SERVER_WG_NIC}.conf")")"
     printf "[Interface]\n" > "${FILE_CONF_WG}"
     local _addr_wg_serv=''
@@ -1387,9 +1312,6 @@ wg_install() {
         printf "ListenPort = ${SERVER_PORT}\n"
         printf "PrivateKey = ${SERVER_PRIV_KEY}\n"
     } >> "${FILE_CONF_WG}"
-    # if [ -n "${CLIENT_DNS}" ]; then
-    #     printf "DNS = ${CLIENT_DNS}\n" >> "${FILE_CONF_WG}"
-    # fi
     # права на файл конфигурации
     chmod 0700 "${path_wg}" > /dev/null 2>&1
     chmod 0600 "${FILE_CONF_WG}" > /dev/null 2>&1
@@ -1531,16 +1453,11 @@ delete_client_config_serv() {
         exec_cmd rm "${clnt_cfg}"
         exec_cmd rm "${serv_cfg}"
         exec_cmd rm "${clnt_qrc}"
-        # rm "${clnt_cfg}" > /dev/null 2>&1
-        # rm "${serv_cfg}" > /dev/null 2>&1
-        # rm "${clnt_qrc}" > /dev/null 2>&1
         # удалить в файле конфигурации сервера инфу о клиенте
         if [ -n "$2" ]; then
-            # exec_cmd sed -i -En "/^${_btc}$1${_dtc}/,/^${_etc}$1${_dtc}/!p" "${2}"
             if grep -E "^${_etc}$1${_dtc}" "${_file_wg}" > /dev/null; then
                 exec_cmd sed -i -En "/^${_btc}$1${_dtc}/,/^${_etc}$1${_dtc}/!p" "${2}"
             fi
-            # exec_cmd sed -i -En "/^${_btc}$1${_dtc}/,/^${_etc}$1${_dtc}/!p" "${2}"
         fi
     fi
 }
@@ -1569,7 +1486,6 @@ client_action() {
             return 1
         fi
         # NUMBER_OF_CLIENTS="$(grep -c -E "^${_btc}" "${_file_wg}")"
-        # msg "$(grep -E "^${_btc}" "${_file_wg}" | awk -F "${_dtc}" '{print $3"; "$4";"}' | nl -s ') ' -w 2)"
         if [ -z "${list_all}" ] || [ "${list_all}" = 0 ]; then
             msg "Управляемые данным скриптом клиенты в конфигурации ${_file_wg}:\n"
             # shellcheck disable=SC2046
@@ -1598,24 +1514,8 @@ client_action() {
                     peer_active = 0
                 }
             ' "${_file_wg}")
-            # | grep "${_name}")
         fi
         msg "$_s"
-        # awk -v v1="${_btc}" -v v2="${_etc}" '
-        #     $0 ~ v1 {
-        #         stack[++depth] = $3
-        #     }
-        #     $0 ~ v2 {
-        #         if (depth > 0 && stack[depth] == $4) {
-        #             count++
-        #             print count") "$4"; "$5 
-        #             depth--
-        #         } else {
-        #             # Несоответствующий END - сбрасываем стек
-        #             depth = 0
-        #         }
-        #     }
-        # ' "${_file_wg}"
 
     ;;
     'del')
@@ -1743,10 +1643,6 @@ client_action() {
         local str_keepalive=""
         if [ -n "$keepalive" ] && [ "$keepalive" != "0" ]; then
             # проверить валидность $keepalive, д.б. числом
-            # eval 'val_ka=$(( 0 + $keepalive ))' 2>/dev/null
-            # ( (( 0 + $keepalive )) )
-            #if [ "$?" = "0" ]; then
-            #if ( (( 0 + $keepalive )) 2>/dev/null); then
             if (_validate_int "$keepalive"); then
                 local str_keepalive="PersistentKeepalive = ${keepalive}"
             fi
@@ -1806,11 +1702,6 @@ client_action() {
                 printf "%s\n" "${l6}"
             } >> "${_file_wg}"
         fi
-        # printf "PublicKey = ${_client_key_pub}\n"       >> "${_file_wg}"
-        # printf "PresharedKey = ${_client_key_pkey}\n"   >> "${_file_wg}"
-        # printf "AllowedIPs = ${_allowed_ips_srv}\n"     >> "${_file_wg}"
-        # printf "${footer_client}\n"                     >> "${_file_wg}"
-        # printf "\n"                                     >> "${_file_wg}"
         # сформировать QR-код для клиента
         if command -v qrencode >/dev/null; then
             debug "Формируем QR-код для клиента в файл ${clnt_qrc}"
@@ -1972,15 +1863,16 @@ main() {
     # установятся они до инициализации аргументов
     debug "Инициализация...\n"
     # local r="$(check_os 2)"
-    # TODO проверка $cmd временно для ускорения отладки, в ПРОД убрать
+    # проверка $cmd, что это не client, для client нет смысла в init_os
     if [ "${cmd}" != "client" ]; then
         if [ -z "${is_debug}" ] || [ "${is_debug}" = 0 ]; then
+            # init_os для реальной работы
             init_os > /dev/null 2>&1
         else
+           # init_os для дебага
             init_os
         fi
     fi
-    # TODO проверка $cmd временно для ускорения отладки, в ПРОД убрать
     debug "Инициализация закончилась...\n"
 
     is_update_file_args="${is_update_file_args:=0}"
@@ -1992,26 +1884,18 @@ main() {
         # shellcheck source=/dev/null
         . "${file_args}"
     fi
-    # if [ -n "${file_args}" ]; then
-    #     local path_file_args="$(dirname ${file_args})"
-    #     if [ -n "${path_file_args}" ]; then
-    #         mkdir -p "${path_file_args}" > /dev/null
-    #     fi
-    # fi
     cmd=${cmd:-install}
     # is_file_args пустая, если не задавали аргумент -f (--file-args)
-    # if [ -z "${is_file_args}" ] || [ ! -f "${file_args}" ]; then
-        # Обрабатываем аргументы командной строки, которые сохраняются в файл аргументов
-        local _a_name_service="${_a_name_service:-wg}"
-        local _a_path_wg="$(_add_current_dot "${_a_path_wg:-/etc/wireguard}")"
-        local temp_path="$(_join_path "${_a_path_wg}" "$(_add_current_dot "${_a_file_params:-"$VARS_PARAMS"}")")"
-        local _a_file_params="$(realpath -m "${temp_path}")"
-        local temp_path="$(_join_path "${_a_path_wg}" "$(_add_current_dot "${_a_file_hand_params:-${def_file_hand_params}}")")"
-        local _a_file_hand_params="$(realpath -m "${temp_path}")"
-        local temp_path="$(_join_path "${_a_path_wg}" ".clients")"
-        local _a_path_out="$(realpath -m "$(_add_current_dot "${_a_path_out:-${temp_path}}")")"
-        local _a_file_rules_firewall="$(_add_current_dot "${_a_file_rules_firewall:-./iptables/default-iptables.rules}")"
-    # fi
+    # Обрабатываем аргументы командной строки, которые сохраняются в файл аргументов
+    local _a_name_service="${_a_name_service:-wg}"
+    local _a_path_wg="$(_add_current_dot "${_a_path_wg:-/etc/wireguard}")"
+    local temp_path="$(_join_path "${_a_path_wg}" "$(_add_current_dot "${_a_file_params:-"$VARS_PARAMS"}")")"
+    local _a_file_params="$(realpath -m "${temp_path}")"
+    local temp_path="$(_join_path "${_a_path_wg}" "$(_add_current_dot "${_a_file_hand_params:-${def_file_hand_params}}")")"
+    local _a_file_hand_params="$(realpath -m "${temp_path}")"
+    local temp_path="$(_join_path "${_a_path_wg}" ".clients")"
+    local _a_path_out="$(realpath -m "$(_add_current_dot "${_a_path_out:-${temp_path}}")")"
+    local _a_file_rules_firewall="$(_add_current_dot "${_a_file_rules_firewall:-./iptables/default-iptables.rules}")"
     set_var keepalive "0" "${keepalive}"
     set_var name_service "${name_service}" "${_a_name_service}"
     set_var path_wg "${path_wg}" "${_a_path_wg}"
@@ -2029,16 +1913,11 @@ main() {
         dry_run=0
     fi
     list_all="${list_all:=0}"
-    #if [ -n "${is_update_file_args}" ] && [ "${is_update_file_args}" != "0" ] && [ "$cmd" != 'prepare' ]; then
     if [ -n "${is_update_file_args}" ] && [ "${is_update_file_args}" != "0" ]; then
         # file_args="$(_add_current_dot "${file_args:=${def_file_args}}")"
         # записать в файл аргументы текущего запуска
         {
             printf "# сохраненные аргументы для запуска\n"
-            # printf "is_debug=%s\n" "${is_debug}"
-            # printf "dry_run=%s\n" "${dry_run}"
-            # printf "use_ipv6=%s\n" "${use_ipv6}"
-            # printf "nic_name=%s\n" "${nic_name}"
             printf "path_wg=%s\n" "${path_wg}"
             printf "file_params=%s\n" "${file_params}"
             printf "file_hand_params=%s\n" "${file_hand_params}"
@@ -2091,9 +1970,6 @@ main() {
     chown -R root:root "${path_out}" > /dev/null
     chown -R root:root "${path_file_params}" > /dev/null
     # установить права на созданные каталоги, их подкаталоги и файлы
-    # find ./ -type d -exec chmod 0700 {} \;
-    # find ./ -type f -exec chmod 0600 {} \;
-    # find ./ -type f -name '*.sh' -exec chmod 0700 {} \;
     set_mode "${path_wg}"
     set_mode "${path_out}"
     set_mode "${path_file_params}"
@@ -2110,9 +1986,6 @@ main() {
     fi
     # INST_SERVER_WG_IPV4/INST_SERVER_WG_IPV4_MASK
     # WIREGUARD SERVER IPv4/MASK
-    # if [ -z "${ipv4}" ]; then
-    #     ipv4=
-    # fi
     if [ -n "${ipv4}" ]; then
         local _ip_="$(get_ip_mask_4 "${ipv4}")"
         INST_SERVER_WG_IPV4="$(get_item_str "${_ip_}" "ip")"
@@ -2172,32 +2045,13 @@ main() {
                 local _ip_="$(get_ip_mask_4 "${ipv4}")"
                 SERVER_WG_IPV4="$(get_item_str "${_ip_}" "ip")"
                 SERVER_WG_IPV4_MASK="$(get_item_str "${_ip_}" "mask")"
-            # else
-            #     err "Для сервера Wireguqrd должен быть обязательно указан IPv4"
-            #     exit 1
             fi
             # WIREGUARD SERVER IPv6/MASK
             if [ -n "${ipv6}" ]; then
                 local _ip_="$(get_ip_mask_6 "${ipv6}")"
                 SERVER_WG_IPV6="$(get_item_str "${_ip_}" "ip")"
                 SERVER_WG_IPV6_MASK="$(get_item_str "${_ip_}" "mask")"
-            # else
-            #     if [ -n "${use_ipv6}" ] && [ "${use_ipv6}" != "0" ]; then
-            #         err "Т.к. --use-ipv6 указан в аргументах запуска, то адрес ipv6 обязателен. А он не указан"
-            #         exit 1
-            #     fi
             fi
-            # Проверить на валидность
-            # if [ -z "${SERVER_WG_IPV6}" ] || [ -z "${SERVER_WG_IPV6_MASK}" ]; then
-            #     if [ -n "${use_ipv6}" ] && [ "${use_ipv6}" != "0" ]; then
-            #         err "Неверный IPv6 ${SERVER_WG_IPV6}/${SERVER_WG_IPV6_MASK}"
-            #         exit 1
-            #     fi
-            # fi
-            # if [ -z "${SERVER_WG_IPV4}" ] || [ -z "${SERVER_WG_IPV4_MASK}" ]; then
-            #     err "Неверный IPv4 ${SERVER_WG_IPV4}/${SERVER_WG_IPV4_MASK}"
-            #     exit 1
-            # fi
             # Нормализировать action
             local _act="$(echo " ${ACTION_CLIENT} " | sed -rn "s/.*( $action ).*/\1/p" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
             case "${_act}" in
