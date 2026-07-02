@@ -364,19 +364,6 @@ parse_options() {
     # shellcheck disable=SC2086
     return $res
 }
-# # ==================================================
-# # $1 - строка вида 'NAME1=VAL1; NAME2 = VAL2; ' || 'NAME1=VAL1' || 'NAME1 = VAL1'
-# # Префикс для имени экспортируемой переменной "ARG_"
-# parse_options() {
-#     local _prefix="$2"
-#     local args="$1"
-#     # Сохраняем исходный IFS
-#     OLD_IFS="$IFS"
-#     IFS=';'
-#     set -- $string  # устанавливаем позиционные параметры
-#     IFS="$OLD_IFS"  # восстанавливаем IFS
-# }
-
 
 # 
 install_packages() {
