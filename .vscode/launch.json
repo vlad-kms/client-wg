@@ -1,0 +1,72 @@
+{
+    // Используйте IntelliSense, чтобы узнать о возможных атрибутах.
+    // Наведите указатель мыши, чтобы просмотреть описания существующих атрибутов.
+    // Для получения дополнительной информации посетите: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "bashdb",
+            "request": "launch",
+            "name": "Bash-Debug (select script from list of sh files)",
+            "cwd": "${workspaceFolder}",
+            "program": "${command:SelectScriptName}",
+            "args": ["12"]
+        },
+        {
+            "type": "bashdb",
+            "request": "launch",
+            "name": "wg-mgr",
+            "cwd": "${workspaceFolder}",
+            "program": "${workspaceFolder}/wg-mgr.sh",
+            //"args": ["-f", "last-args", "--dry-run"]
+            //"args": ["6", "fd00::1", "::1/65"]
+            //"args": ["4", "1..1.1/2", "1.1.1.9/32"]
+            "args": ["-w", "wg", "-c", "c1.conf", "--dry-run", "-f", "last-args", "--debug", "--ip4 172.16.7.8/30"]
+        },
+        {
+            "type": "bashdb",
+            "request": "launch",
+            "name": "wg-mgr prepare",
+            "cwd": "${workspaceFolder}",
+            "program": "${workspaceFolder}/wg-mgr.sh",
+            //"args": ["prepare", "-c", "c1.conf", "--debug", "--ip4", "172.23.1.1/26", "-i", "wg5", "--ip6", "1:1/124"]
+            //"args": ["prepare", "--debug", "-i", "wg5", "--ip6", "1:1/124"]
+            "args": ["prepare", "--debug", "-t", "OPT1=123;SSH_PORT1=234"]
+        },
+        {
+            "type": "bashdb",
+            "request": "launch",
+            "name": "wg-mgr install",
+            "cwd": "${workspaceFolder}",
+            "program": "${workspaceFolder}/wg-mgr.sh",
+            "args": ["install", "-c", "c13.conf", "--debug", "--ip4", "172.25.25.254/24", "-i", "wg13", "--dry-run", "-w", "./wg-temp", "-t", "SSH_PORT=222"]
+        },
+        {
+            "type": "bashdb",
+            "request": "launch",
+            "name": "wg-mgr client list",
+            "cwd": "${workspaceFolder}",
+            "program": "${workspaceFolder}/wg-mgr.sh",
+            "args": ["client", "-a", "l", "--debug", "-n", "test1", "-i", "wg2"]
+        },
+        {
+            "type": "bashdb",
+            "request": "launch",
+            "name": "wg-mgr client new",
+            "cwd": "${workspaceFolder}",
+            "program": "${workspaceFolder}/wg-mgr.sh",
+            //"args": ["client", "-a", "a", "--debug", "--ip4", "19.19.19.111/29", "-i", "wg2", "-n", "test1"]
+            "args": ["client", "-a", "a", "--debug", "--ip4", "19.19.19.111/29", "-i", "wg3", "-n", "t7", "-k", "10"]
+        },
+    
+        {
+            "type": "bashdb",
+            "request": "launch",
+            "name": "split.sh",
+            "program": "${workspaceFolder}/test/split_ip.sh",
+            "cwd": "${workspaceFolder}",
+            "args": ["ffc0::1/325"]
+            //"args": ["4", "192.168.5..36", "1.1.1.1/4"]
+        }
+    ]
+}
