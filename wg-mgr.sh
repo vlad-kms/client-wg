@@ -69,7 +69,8 @@ oi6='[0-9a-fA-F]{1,4}'
 ai4='((1?[0-9][0-9]?|2[0-4][0-9]|25[0-5])\.){3}(1?[0-9][0-9]?|2[0-4][0-9]|25[0-5])'
 
 show_help() {
-    # -c -r -p -d -h -o -6 -w -f -u -a -l -n -x -i
+    # -a -c -d -e -f -h -i -k -l -n -o -p -r -s -u -w -x -6
+    # -b -g -j -m -q -t -v -y -z 
     msg "Использование:"
     msg "wg-mgr.sh [command] [options]"
     msg "command (одна из [ ${ARR_CMD} ], по-умолчанию install):"
@@ -127,10 +128,18 @@ show_help() {
     msg "                                   wg      - Wireguard"
     msg "                                   awg     - AmneziaWG"
     msg "                                   По-умолчанию: wg (Wireguard)"
+    msg "    -t, --option <StringOptios>- дополнительные опции, может встречаться от 0 до нескольких раз. Формат:"
+    msg "                                 NAME_OPTION=VALUE_OPTION"
+    msg "                                 Строка может содержать несколько опций разделенных ';'"
+    msg "                                 Например:"
+    msg "                                 SSH_PORT=22"
+    msg "                                 NFT_NAT_NET=22"
+    msg "                                 NFT_NAT_NET=22; NFT_LIST_TRUSN_WAN='test.md.dom, test2.dm.dom'"
+    msg "                                 и т.д."
     msg "    -6, --use-ipv6             - использовать IPv6 или нет для настройки локальных адресов WIREGUARD VPN. НЕ РЕАЛИЗОВАНО (пока)"
     msg "        --dry-run              - команду не выполнять, только показать"
-    msg "    -w, --wg-path <path>       - путь к установленному Wireguard"
     msg "    -u, --update-args          - флаг, что надо обновить файл с аргументами соответственно текущим аргументам командной строки"
+    msg "    -w, --wg-path <path>       - путь к установленному Wireguard"
     msg "    -x, --allow-lxc            - флаг, что не блокировать установку WIREGUARD в контейнеры и VM LXD"
     msg " "
 }
@@ -219,6 +228,155 @@ exec_cmd_with_result() {
     fi
     printf "%s" "${res}"
 }
+
+# Проверить что строка $1 есть как отдельное слово в строке $2
+str_in_strings() {
+    debug "str_in_strings BEGIN ==================================="
+    debug "Ищем '$1' в '$2'"
+    if [ -z "$1" ] || [ -z "$2" ]; then return 1; fi
+    case " $2 " in
+        *" $1 "*)
+            debug "'$1' есть в '$2'"
+            debug 'str_in_strings END ====================================='
+            return 0
+        ;;
+        *)
+            debug "'$1' нет в '$2'"
+            debug 'str_in_strings END ====================================='
+            return 1
+        ;;
+    esac
+}
+
+# $1 - строка вида 'NAME1=VAL1'
+# $2 - Префикс для имени экспортируемой переменной, $2$NAME
+# $3 - список через пробелы разрешенных NAME, например 'install delete name_val1'
+parse_option() {
+    debug "parse_option BEGIN ==================================="
+    local ttt="$@"
+    debug "parse_option args: ${ttt}"
+    if [ -z "$1" ]; then printf ""; return 1; fi
+    line="$1"
+    allowed_cmd="$3"
+    case $1 in
+        *=*)
+            # распарсить Name= val на 'Name' и 'val'
+            # trim пробелы
+            local name="$(_trim "${line%%=*}")"
+            local value="$(_trim "${line#*=}")"
+            # проверить , что Name состоит из [a-zA-Z_0-9]
+            case "$name" in
+                ''|*[!a-zA-Z0-9_]*)
+                    is_export=0
+                    msg "Пропускаем строку '${line}'. '$name' is NOT valid name variable" "${DCYAN}"
+                ;;
+                *)
+                    # не валидное имя переменной
+                    debug "$name is valid name variable"
+                    is_export=1
+                ;;
+            esac
+            # shellcheck disable=SC2086
+            if [ $is_export -eq 1 ] && [ -n "$allowed_cmd" ]; then
+                # проверить есть ли такое Name в списке разрешенных
+                if str_in_strings "$name" "$allowed_cmd" > /dev/null; then
+                    is_export=1;
+                else
+                    is_export=0;
+                fi
+            fi
+        ;;
+        *)
+            msg "Пропускаем строку '${line}'. Неверный формат, д.б. NAME=VALUE" "${DCYAN}"
+            is_export=0
+        ;;
+    esac
+    # shellcheck disable=SC2086
+    if [ $is_export -eq 1 ]; then
+        res=0
+        debug "$2$name=$value"
+        export "$2$name=$value"
+    else
+        res=1
+    fi
+    debug "parse_option END ====================================="
+    # shellcheck disable=SC2086
+    return $res
+}
+
+# $1 - имя переменной
+# $2 - значение переменной
+get_value_hand_param(){
+    debug "get_value_hand_param BEGIN ================================"
+    local ttt="$@"
+    debug "get_value_hand_param args: ${ttt}"
+    result=""
+    if [ -n "$1" ]; then
+        local name="$1"
+        debug "Подготовим переменную $name"
+        if [ -n "$2" ]; then
+            result="$2"
+        else
+            eval "result=\$$name"
+        fi  # значение по умолчанию ["
+        res="ARG_$name"
+        #if export | grep "$res" > /dev/null; then
+        #if export | grep -E "^.* $res=\"?(.*)\"?.*$" > /dev/null; then
+        if export | grep -E "^.* $res=\"?(.*)\"?.*$" > /dev/null; then
+            eval "result=\$$res"
+        fi
+    fi
+    debug "Значение переменной $name: $result"
+    debug "get_value_hand_param ENВ =================================="
+    printf "$name=$result"
+    return 0
+}
+
+# $1 - строка вида 'NAME1=VAL1; NAME2 = VAL2; ' || 'NAME1=VAL1' || 'NAME1 = VAL1'
+# $2 - Префикс для имени экспортируемой переменной, $2$NAME
+# $3 - список через пробелы разрешенных NAME, например 'install delete name_val1'
+parse_options() {
+    debug "parse_options BEGIN ==================================="
+    local ttt="$@"
+    debug "parse_options args: ${ttt}"
+    _prefix="$2"
+    args="$1"
+    allowed_list="$3"
+    # Сохраняем исходный IFS
+    OLD_IFS="$IFS"
+    IFS=';'
+    # shellcheck disable=SC2086
+    set -- $args  # устанавливаем позиционные параметры
+    IFS="$OLD_IFS"  # восстанавливаем IFS
+    # разбить строку на части, разделитель ';' и распарсить полученные параметры
+    res=0
+    for part in "$@"; do
+        # убрать пробелы - аналог trim
+        part="$(_trim "$part")"
+        if [ -n "$part" ]; then
+            debug "part: $part"
+            if ! parse_option "$part" "$_prefix" "$allowed_list" > /dev/null; then
+                res=1
+            fi
+        fi
+    done
+    debug "parse_options END ====================================="
+    # shellcheck disable=SC2086
+    return $res
+}
+# # ==================================================
+# # $1 - строка вида 'NAME1=VAL1; NAME2 = VAL2; ' || 'NAME1=VAL1' || 'NAME1 = VAL1'
+# # Префикс для имени экспортируемой переменной "ARG_"
+# parse_options() {
+#     local _prefix="$2"
+#     local args="$1"
+#     # Сохраняем исходный IFS
+#     OLD_IFS="$IFS"
+#     IFS=';'
+#     set -- $string  # устанавливаем позиционные параметры
+#     IFS="$OLD_IFS"  # восстанавливаем IFS
+# }
+
 
 # 
 install_packages() {
@@ -1021,6 +1179,7 @@ INST_ALLOWED_IPS=${client_allowed_ips:=${DEF_ALLOWED_IPS}}"
         printf "file_hand_params=%s\n" "${_a_file_hand_params}"
         printf "path_out=%s\n" "${_a_path_out}"
         printf "file_rules_firewall=%s\n" "${_a_file_rules_firewall}"
+        # shellcheck disable=SC2154
         printf "name_service=%s\n" "${name_service}"
     } >  "${file_args}"
     debug "wg_prepare_file_config END  =========================="
@@ -1040,7 +1199,9 @@ inst_iptables(){
             # есть файл с правилами для iptables
             # копируем файл-шаблон в каталог WIREGUARD
             local script_rules="$(realpath -m "$(_join_path "${path_wg}" "apply_rules.sh")")"
+            # shellcheck disable=SC2154
             local _fp="$(realpath -m "${file_params}")"
+            # shellcheck disable=SC2154
             local _fhp="$(realpath -m "${file_hand_params}")"
             debug "script_rules: ${script_rules}"
             cp "${frf}" "${script_rules}"
@@ -1064,6 +1225,7 @@ inst_iptables(){
         fi
     fi
     debug "inst_iptables END"
+    # shellcheck disable=SC2086
     return $result
 }
 
@@ -1328,11 +1490,15 @@ wg_install() {
         exec_cmd systemctl enable "wg-quick@${SERVER_WG_NIC}"
     fi
     # файл hand_params, дополнительные параметры
+    SSH_PORT=22
+    SSH_PORT="get_value_hand_param SSH_PORT"
     {
         printf "### Порт SSH\n"
-        printf "SSH_PORT=22\n"
+        #printf "SSH_PORT=22\n"
+        printf "%s\n" "$(get_value_hand_param "SSH_PORT" "22")"
         printf "### Протокол клиента WIREGUARD\n"
-        printf "WG_PROTO=udp\n"
+        #printf "WG_PROTO=udp\n"
+        printf "%s\n" "$(get_value_hand_param "WG_PROTO" "udp")"
      } > "${file_hand_params}"
     local _net="$(ipcalc "${SERVER_WG_IPV4}/${SERVER_WG_IPV4_MASK}" | grep -e "^Network:" | sed -En "s/^Network:\s*([^ \t]*).*$/\1/p")"
     printf "WG_NET=${_net}\n" >> "${file_hand_params}"
@@ -1345,32 +1511,35 @@ wg_install() {
     fi
     {
         printf "### MAC адрес шлюза провайдера VPS\n"
-        printf "PROVIDER_GW_MAC=08:05:e2:fa:07:f0\n"
+        # printf "PROVIDER_GW_MAC=08:05:e2:fa:07:f0\n"
+        printf "%s\n" "$(get_value_hand_param "PROVIDER_GW_MAC" "")"
         printf "### IP адрес шлюза провайдера VPS,\n"
         printf "### можно указать вручную, если он не определяется автоматически в процессе работы cкрипта\n"
-        printf "# PROVIDER_GW_IP=\n"
+        printf "%s\n" "$(get_value_hand_param "PROVIDER_GW_IP" "")"
         printf "### параметр для файла nft.rules, используется для указания counter в правилах nftables\n"
-        printf "NFT_COUNTER=counter\n"
+        printf "%s\n" "$(get_value_hand_param "NFT_COUNTER" "counter")"
         printf "### IP сети, которые будут натиться\n"
         printf "# NFT_NAT_NET=\"192.168.15.0/24, 192.168.16.0/24,192.168.25.0/24,192.168.26.0/24\"\n"
-        printf "NFT_NAT_NET=\"\"\n"
+        printf "%s\n" "$(get_value_hand_param "NFT_NAT_NET" "\"\"")"
         printf "### Список доверенных адресов из ИНЕТ'а\n"
-        printf "NFT_LIST_TRUSN_WAN='cl.vpn.mrovo.ru, cl-ang.vpn.mrovo.ru'\n"
+        printf "%s\n" "$(get_value_hand_param "NFT_LIST_TRUSN_WAN" "'cl.vpn.mrovo.ru, cl-ang.vpn.mrovo.ru'")"
         printf "### Список доверенных адресов из LAN'ов\n"
-        printf "NFT_LIST_TRUST_VPN=\"192.168.15.0/24\"\n"
+        printf "%s\n" "$(get_value_hand_param "NFT_LIST_TRUST_VPN" "\"192.168.15.0/24\"")"
         printf "### Список адресов, которым разрешен доступ к LAN'ам\n"
-        printf "NFT_LIST_VPN=\n"
+        printf "%s\n" "$(get_value_hand_param "NFT_LIST_VPN" "")"
         printf "### Список адресов, которым разрешен доступ только к LAN'ам\n"
-        printf "NFT_LIST_VPN_ONLY=\n"
+        printf "%s\n" "$(get_value_hand_param "NFT_LIST_VPN_ONLY" "")"
         printf "### Список адресов, которым запрещен доступ к INET'у\n"
-        printf "NFT_LIST_INET_DROP=\n"
+        printf "%s\n" "$(get_value_hand_param "NFT_LIST_INET_DROP" "")"
         printf "### DNS сервер локальной сети\n"
-        printf "# NFT_DNS_LOCALNET=192.168.15.1\n"
+        printf "# %s\n" "$(get_value_hand_param "NFT_DNS_LOCALNET" "192.168.15.3")"
         printf "### DNS домены поиска для локальной сети\n"
         printf "# NFT_SEARCH_DOMAIN_LOCALNET=\"domain1.qq domain2.df\"\n"
+        printf "%s\n" "$(get_value_hand_param "NFT_SEARCH_DOMAIN_LOCALNET" "")"
     } >> "${file_hand_params}"
     # работа с настройками для iptables
     if which iptables > /dev/null 2>&1; then
+        # shellcheck disable=SC2154
         inst_iptables "${file_rules_firewall}"
     elif which nft > /dev/null 2>&1; then
         inst_nftables
@@ -1852,6 +2021,12 @@ main() {
                 local _a_name_service="$2"
                 shift
             ;;
+            -t | --option)
+                local _a_option="$2"
+                debug "Парсить опции $_a_option"
+                parse_options "$_a_option" "ARG_"
+                shift
+            ;;
             *)
                 err "Неверный параметр: ${1}"
                 return 1
@@ -1959,6 +2134,16 @@ main() {
     debug "list_all____________: ${list_all}"
     debug "keepalive___________: ${keepalive}"
     debug "name_service________: ${name_service}"
+
+# export
+#     SSH_PORT=22
+#     echo "SSH_PORT: $SSH_PORT"
+#     SSH_PORT="$(get_value_hand_param SSH_PORT)"
+#     echo "SSH_PORT: $SSH_PORT"
+#     SSH_PORT="$(get_value_hand_param "SSH_PORT" "444")"
+#     echo "SSH_PORT: $SSH_PORT"
+# exit
+
     # создать каталоги
     local path_file_params="$(dirname "${file_params}")"
     debug "Создаем каталоги: ${path_wg} ; ${path_out} ; ${path_file_params}"
