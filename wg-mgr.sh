@@ -1500,7 +1500,7 @@ wg_install() {
             local _net="WG_NET6=$(ipcalc "${SERVER_WG_IPV6}/${SERVER_WG_IPV6_MASK}" | grep -e "^Network:" | sed -En "s/^Network:\s*([^ \t]*).*$/\1/p")"
             # printf "WG_NET6=${_net}\n" >> "${file_hand_params}"
         elif [ "${OS}" = 'debian' ] || [ "${OS}" = 'ubuntu' ]; then
-            local _net="$(ipcalc "${SERVER_WG_IPV6}/${SERVER_WG_IPV6_MASK}" | grep -e "^Prefix:" | sed -En "s/^Prefix:\s*([^ \t]*).*$/\1/p")"
+            local _net="WG_NET6=$(ipcalc "${SERVER_WG_IPV6}/${SERVER_WG_IPV6_MASK}" | grep -e "^Prefix:" | sed -En "s/^Prefix:\s*([^ \t]*).*$/\1/p")"
             # printf "WG_NET6=${_net}\n" >> "${file_hand_params}"
         fi
     else
