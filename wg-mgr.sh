@@ -1486,18 +1486,18 @@ wg_install() {
         printf "%s\n" "$(get_value_hand_param "WG_PROTO" "udp")"
     } > "${file_hand_params}"
     if command -v ipcalc > /dev/null; then
-        local _net="$(ipcalc "${SERVER_WG_IPV4}/${SERVER_WG_IPV4_MASK}" | grep -e "^Network:" | sed -En "s/^Network:\s*([^ \t]*).*$/\1/p")"
+        local _net="WG_NET=$(ipcalc "${SERVER_WG_IPV4}/${SERVER_WG_IPV4_MASK}" | grep -e "^Network:" | sed -En "s/^Network:\s*([^ \t]*).*$/\1/p")"
     else
         local _net="$(get_value_hand_param "WG_NET" "")"
     fi
     {
         printf "%s\n" "  # CIDR ipv4 сети Wireguard"
         printf "%s\n" "  # WG_NET=172.26.26.0/24"
-        printf "%s\n" "WG_NET=${_net}"
+        printf "%s\n" "${_net}"
     } >> "${file_hand_params}"
     if command -v ipcalc > /dev/null; then
         if [ "${OS}" = 'alpine' ]; then
-            local _net="$(ipcalc "${SERVER_WG_IPV6}/${SERVER_WG_IPV6_MASK}" | grep -e "^Network:" | sed -En "s/^Network:\s*([^ \t]*).*$/\1/p")"
+            local _net="WG_NET6=$(ipcalc "${SERVER_WG_IPV6}/${SERVER_WG_IPV6_MASK}" | grep -e "^Network:" | sed -En "s/^Network:\s*([^ \t]*).*$/\1/p")"
             # printf "WG_NET6=${_net}\n" >> "${file_hand_params}"
         elif [ "${OS}" = 'debian' ] || [ "${OS}" = 'ubuntu' ]; then
             local _net="$(ipcalc "${SERVER_WG_IPV6}/${SERVER_WG_IPV6_MASK}" | grep -e "^Prefix:" | sed -En "s/^Prefix:\s*([^ \t]*).*$/\1/p")"
@@ -1509,7 +1509,7 @@ wg_install() {
     {
         printf "%s\n" "  # CIDR ipv6 сети Wireguard"
         printf "%s\n" "  # WG_NET6=fd00:1111::0000/64"
-        printf "%s\n" "WG_NET6=${_net}"
+        printf "%s\n" "${_net}"
         printf "%s\n" "  ### MAC адрес шлюза провайдера VPS"
         printf "%s\n" "  # PROVIDER_GW_MAC=08:05:e2:fa:07:f0"
         printf "%s\n" "$(get_value_hand_param "PROVIDER_GW_MAC" "")"
