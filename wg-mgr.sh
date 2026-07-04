@@ -1536,6 +1536,11 @@ wg_install() {
         printf "%s\n" "  ### DNS домены поиска для локальной сети"
         printf "%s\n" "  # NFT_SEARCH_DOMAIN_LOCALNET=\"domain1.qq domain2.df\""
         printf "%s\n" "$(get_value_hand_param "NFT_SEARCH_DOMAIN_LOCALNET" "")"
+        printf "%s\n" "  ### Какой DNS сервер установлен и используется на VDS. Но мы их не настраиваем ПОКА"
+        printf "%s\n" "  ### 0 - systemd_resolved; 1 - dnsmasq"
+        printf "%s\n" "  ### TODO ПОКА не используется."
+        printf "%s\n" "  # USED_DNS=0"
+        printf "%s\n" "USED_DNS=0"
     } >> "${file_hand_params}"
     # работа с настройками для iptables
     if which iptables > /dev/null 2>&1; then
