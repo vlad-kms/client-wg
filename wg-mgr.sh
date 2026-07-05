@@ -1549,6 +1549,31 @@ wg_install() {
         printf "%s\n" "  ### TODO ПОКА не используется."
         printf "%s\n" "  # USED_DNS=0"
         printf "%s\n" "USED_DNS=0"
+        printf "%s\n" "  ### Список proto.port:ip.port для правила DNAT"
+        printf "%s\n" "  # NFT_MAP_DNAT=\"
+  #   type inet_proto . inet_service : ipv4_addr . inet_service
+  #   elements ={
+  #     tcp . 80   : 192.168.15.79 . 80,
+  #     tcp . 443  : 192.168.15.79 . 443,
+  #     tcp . 8080 : 192.168.15.80 . 80,
+  #     tcp . 8443 : 192.168.15.80 . 443,
+  #     udp . 443  : 192.168.15.79 . 5555
+  #   }
+  # \""
+        printf "%s\n" "NFT_MAP_DNAT=\" type inet_proto . inet_service : ipv4_addr . inet_service; \""
+        printf "%s\n" "  ### Список ip . proto . port : action для правила в forward filter"
+        printf "%s\n" \
+  "  # NFT_MAP_FORWARD_ACL=\"
+  #   type ipv4_addr . inet_proto . inet_service : verdict
+  #   elements ={
+  #     192.168.15.79 . tcp . 80   : accept,
+  #     192.168.15.79 . tcp . 443  : accept,
+  #     192.168.15.80 . tcp . 8080 : accept,
+  #     192.168.15.80 . tcp . 8443 : accept,
+  #     192.168.15.79 . udp . 443  : accept
+  #   }
+  # \""
+        printf "%s\n" "NFT_MAP_FORWARD_ACL=\" type ipv4_addr . inet_proto . inet_service : verdict; \""
     } >> "${file_hand_params}"
     # работа с настройками для iptables
     if which iptables > /dev/null 2>&1; then

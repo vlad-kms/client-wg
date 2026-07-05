@@ -25,7 +25,11 @@ name_set_awg_ssh_ban=awg_ssh_ban
 name_set_awg_trust_wan=awg_trust_wan
 name_set_awg_trust_vpn=awg_trust_vpn
 
+name_map_forward_acl=map_forward_acl
+name_map_dnat=map_dnat
+
 family=inet
+family_ip=ip
 awg_priority=10
 
 awg_counter="${NFT_COUNTER}"
@@ -96,12 +100,12 @@ trap _cleanup_emergency SIGINT SIGTERM
 get_handle_elem() {
   if [ -z "$1" ] || [ -z "$2" ]; then
     printf ""
-    return 1
+    return 2
   fi
   res=$(nft -a list "$2" 2>/dev/null | grep "$1" | grep -o 'handle [0-9]*' | awk '{print $2}')
   if [ -z "$res" ]; then
     printf ""
-    return 2
+    return 1
   else
     printf "$res"
     return 0
@@ -187,6 +191,7 @@ add chain $family $awg_table_mangle prerouting {type filter hook prerouting prio
 add chain $family $awg_table_mangle forward {type filter hook forward priority filter - $awg_priority; policy accept;}
   # Оптимизация TCP MSS для VPN/PPPoE (исключает фрагментацию)
 add rule $family $awg_table_mangle forward ${awg_counter} tcp flags syn tcp option maxseg size set rt mtu
+  # отладка: nft monitoring trace 
 add rule $family $awg_table_mangle prerouting iifname "$SERVER_WG_NIC" ip saddr { 192.168.15.99, 192.168.15.129, 192.168.16.55, 192.168.15.202 } meta nftrace set 1
   # --- set marks
   # БАЗОВОЕ ПРАВИЛО: Всем клиентам сети по умолчанию разрешаем только Интернет (0x100)
@@ -213,6 +218,10 @@ add set $family $std_table_filter $name_set_awg_nat_net { type ipv4_addr; flags 
   # ---
 # add set $family $std_table_filter $name_set_nat_inet_drop { type ipv4_addr; flags interval; }
 # add set $family $std_table_filter $name_set_awg_vpn_only  { type ipv4_addr; flags interval; }
+
+  # --- MAPS
+add map $family $std_table_filter $name_map_forward_acl {$NFT_MAP_FORWARD_ACL}
+add map ip      $std_table_nat    $name_map_dnat        {$NFT_MAP_DNAT}
 
   # CHAINS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   # --- create chain $name_chain_logdrop
@@ -264,6 +273,7 @@ add rule  $family $std_table_filter $name_chain_scan_port tcp dport 22 ct state 
 add rule  $family $std_table_filter $name_chain_scan_port ${awg_counter} return
   # --- INPUT $name_chain_awg_input
 add chain $family $std_table_filter $name_chain_awg_input
+  # отладка: nft monitoring trace 
 # add rule  $family $std_table_filter $name_chain_awg_input tcp dport 22 meta nftrace set 1
 add rule  $family $std_table_filter $name_chain_awg_input $predefined_rule_0 comment "Разрешить все на интерфейсе lo"
 add rule  $family $std_table_filter $name_chain_awg_input $predefined_rule_1 comment "Разрешить stateless"
@@ -283,8 +293,11 @@ add chain $family $std_table_filter $name_chain_awg_forward
 # add rule  $family $std_table_filter $name_chain_awg_forward $predefined_rule_0 comment "Разрешить все на интерфейсе lo"
 add rule $family $std_table_filter $name_chain_awg_forward $predefined_rule_1 comment "Разрешить stateless"
 add rule $family $std_table_filter $name_chain_awg_forward $predefined_rule_2 comment "Запретить invalid"
+  # отладка: nft monitoring trace 
 add rule $family $std_table_filter $name_chain_awg_forward iifname "$SERVER_WG_NIC" oifname  "$SERVER_PUB_NIC" ip saddr { 192.168.15.99, 192.168.15.129,192.168.16.55, 192.168.15.202 } meta nftrace set 1
 add rule $family $std_table_filter $name_chain_awg_forward iifname "$SERVER_WG_NIC" ip saddr @${name_set_awg_trust_vpn} ${awg_counter} accept
+  # filter для DNAT $name_map_forward_acl : nft insert rule inet filter awg_forward handle 694 ip daddr . ip protocol . th dport map @map_forward_acl
+add rule $family $std_table_filter $name_chain_awg_forward ip daddr . ip protocol . th dport vmap @$name_map_forward_acl
 # add rule $family $std_table_filter $name_chain_awg_forward iifname "$SERVER_WG_NIC" oifname  "$SERVER_PUB_NIC" meta mark & ${mark_inet} == ${mark_inet} ${awg_counter} accept
 # add rule $family $std_table_filter $name_chain_awg_forward iifname "$SERVER_WG_NIC" oifname  "$SERVER_WG_NIC" meta mark & ${mark_vpn} == ${mark_vpn} ${awg_counter} accept
 add rule $family $std_table_filter $name_chain_awg_forward iifname "$SERVER_WG_NIC" oifname  "$SERVER_PUB_NIC" ct mark & ${mark_inet} == ${mark_inet} ${awg_counter} accept
@@ -298,7 +311,7 @@ chain $family $std_table_filter input { policy drop; }
 insert rule $family $std_table_filter forward ${awg_counter} jump $name_chain_awg_forward
 chain $family $std_table_filter forward { policy drop; }
 
-  # --- nat
+  # --- $std_table_nat
 $(if ! nft list chain ip $std_table_nat postrouting | grep -E "oifname \"$SERVER_PUB_NIC\"\s*(${awg_counter}.*)?\s*masquerade" 2>&1 > /dev/null; then
   echo "# Включаем masquerade";
   echo "add rule ip $std_table_nat postrouting oifname \"$SERVER_PUB_NIC\" ${awg_counter} masquerade";
@@ -306,6 +319,8 @@ else
   echo "# УЖЕ включен masquerade";
   echo "# add rule ip $std_table_nat postrouting oifname \"$SERVER_PUB_NIC\" ${awg_counter} masquerade";
 fi)
+  # prerouting: правило DNAT
+add rule ip $std_table_nat prerouting dnat to ip protocol . th dport map @$name_map_dnat
 
   # --- установка элементов sets
 $(get_rule_element_set "$family $std_table_filter $name_set_awg_trust_wan" "$trust_wan")
@@ -349,6 +364,17 @@ destroy_awg_table() {
   if [[ -n $handle_awg_forward ]]; then
     echo "$handle_awg_forward" | xargs -I {} nft delete chain $family $std_table_filter handle {};
   fi
+  # ip $std_table_nat prerouting: удалить правило DNAT
+  handle_nat_prerouting="$(get_handle_elem "chain prerouting" "chain ip $std_table_nat prerouting")"
+  hn="$(get_handle_elem "dnat ip to ip protocol . th dport map @$name_map_dnat" "chain ip $std_table_nat prerouting")"
+  if [[ -n "$hn" ]] && [[ -n $handle_nat_prerouting ]]; then
+    echo "$hn" | xargs -I {} nft delete rule ip $std_table_nat prerouting handle {};
+  fi
+  # ip $std_table_nat: удалить map $name_map_dnat
+  # hn="$(get_handle_elem "map $name_map_dnat" "table ip $std_table_nat")"
+  # if [[ -n "$hn" ]] && [[ -n $handle_nat_prerouting ]]; then
+  #   nft delete map ip $std_table_nat $name_map_dnat;
+  # fi
   # chain $name_chain_awg_input
   if nft -a list table $family $std_table_filter | grep -e "chain.*$name_chain_awg_input" 2>&1 >/dev/null; then
     #nft flush chain $family $std_table_filter $name_chain_awg_input
@@ -403,6 +429,14 @@ destroy_awg_table() {
   if nft -a list table $family $std_table_filter | grep -e "set.*$name_set_awg_ssh_ban" 2>&1 >/dev/null; then
     #nft flush set $family $std_table_filter $name_set_awg_ssh_ban
     nft delete set $family $std_table_filter $name_set_awg_ssh_ban
+  fi
+  # map $name_map_forward_acl   =map_forward_acl
+  if nft -a list table $family $std_table_filter | grep -e "map.*$name_map_forward_acl" 2>&1 >/dev/null; then
+    nft delete map $family $std_table_filter $name_map_forward_acl
+  fi
+  # map $name_map_dnat          =map_dnat
+  if nft -a list table ip $std_table_nat | grep -e "map.*$name_map_dnat" 2>&1 >/dev/null; then
+    nft delete map ip $std_table_nat $name_map_dnat
   fi
   # установить для цепочек filter.input, filter.output, filter.forward policy accept
   nft chain $family $std_table_filter input   { policy accept\; }
