@@ -299,12 +299,12 @@ insert rule $family $std_table_filter forward ${awg_counter} jump $name_chain_aw
 chain $family $std_table_filter forward { policy drop; }
 
   # --- nat
-$(if ! nft list chain ip $std_table_nat postrouting | grep -E "oifname \"$SERVER_PUB_NIC\"\s*(counter.*)?\s*masquerade" 2>&1 > /dev/null; then \
-  echo "# Включаем masquerade"; \
-  echo "add rule ip $std_table_nat postrouting oifname \"$SERVER_PUB_NIC\" ${awg_counter} masquerade"
+$(if ! nft list chain ip $std_table_nat postrouting | grep -E "oifname \"$SERVER_PUB_NIC\"\s*(counter.*)?\s*masquerade" 2>&1 > /dev/null; then
+  echo "# Включаем masquerade";
+  echo "add rule ip $std_table_nat postrouting oifname \"$SERVER_PUB_NIC\" ${awg_counter} masquerade";
 else
-  echo "# УЖЕ включен masquerade"; \
-  echo "# add rule ip $std_table_nat postrouting oifname \"$SERVER_PUB_NIC\" ${awg_counter} masquerade"
+  echo "# УЖЕ включен masquerade";
+  echo "# add rule ip $std_table_nat postrouting oifname \"$SERVER_PUB_NIC\" ${awg_counter} masquerade";
 fi)
 
   # --- установка элементов sets
@@ -459,8 +459,8 @@ elif [ "$action" = "add" ]; then
   destroy_awg_table
   if [ -n "${SERVER_WG_NIC}" ] &&  ip l | grep -e ":\s*${SERVER_WG_NIC}:" >/dev/null &&
     command -v resolvectl > /dev/null &&
-    systemctl is-enabled systemd_resolved >/dev/null 2>&1 &&
-    systemctl is-active  systemd_resolved >/dev/null 2>&1
+    systemctl is-active  systemd_resolved >/dev/null 2>&1 &&
+    systemctl is-enabled systemd_resolved >/dev/null 2>&1
   then
     # echo "SERVER_WG_NIC: ${SERVER_WG_NIC}"
     if [ -n "${NFT_DNS_LOCALNET}" ]; then
