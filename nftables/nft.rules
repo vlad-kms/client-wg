@@ -299,7 +299,13 @@ insert rule $family $std_table_filter forward ${awg_counter} jump $name_chain_aw
 chain $family $std_table_filter forward { policy drop; }
 
   # --- nat
-add rule inet nat postrouting oifname "$SERVER_PUB_NIC" ${awg_counter} masquerade
+$(if ! nft list chain ip $std_table_nat postrouting | grep -E "oifname \"$SERVER_PUB_NIC\"\s*(counter.*)?\s*masquerade" 2>&1 > /dev/null; then \
+  echo "# Включаем masquerade"; \
+  echo "add rule ip $std_table_nat postrouting oifname \"$SERVER_PUB_NIC\" ${awg_counter} masquerade"
+else
+  echo "# УЖЕ включен masquerade"; \
+  echo "# add rule ip $std_table_nat postrouting oifname \"$SERVER_PUB_NIC\" ${awg_counter} masquerade"
+fi)
 
   # --- установка элементов sets
 $(get_rule_element_set "$family $std_table_filter $name_set_awg_trust_wan" "$trust_wan")
