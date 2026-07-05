@@ -1524,7 +1524,7 @@ wg_install() {
         printf "%s\n" "  # NFT_NAT_NET=\"192.168.125.0/24, 192.168.126.0/24,192.168.225.0/24,192.168.226.0/24\""
         printf "%s\n" "$(get_value_hand_param "NFT_NAT_NET" "\"\"")"
         printf "%s\n" "  ### Список доверенных адресов из ИНЕТ'а"
-        printf "%s\n" "  # NFT_LIST_TRUSN_WAN='cl.vpn.mrovo.ru, cl-ang.vpn.mrovo.ru'"
+        printf "%s\n" "  # NFT_LIST_TRUST_WAN='cl.vpn.mrovo.ru, cl-ang.vpn.mrovo.ru'"
         printf "%s\n" "$(get_value_hand_param "NFT_LIST_TRUST_WAN" "'cl.vpn.mrovo.ru, cl-ang.vpn.mrovo.ru'")"
         printf "%s\n" "  ### Список доверенных адресов из LAN'ов"
         printf "%s\n" "  # NFT_LIST_TRUST_VPN=\"192.168.125.0/24, 192.168.126.55\""
