@@ -151,6 +151,13 @@ get_rule_element_set() {
   printf "$result"
 }
 
+# Возвращает 0, если версия >= 1, иначе 1
+is_version_less_one() {
+  local v=$(nft --version)
+  local v1=$(echo $v | sed -En 's/^nft.*\sv([0-9.]*)\s*.*/\1/p' | sed -En 's/([0-9])\..*/\1/p')
+  if [ $v1 -ge 1 ]; then return 0; else return 1; fi
+}
+
 # ==================================================================================================================================================
 init_nft() {
 
@@ -279,12 +286,13 @@ add rule  $family $std_table_filter $name_chain_awg_input $predefined_rule_0 com
 add rule  $family $std_table_filter $name_chain_awg_input $predefined_rule_1 comment "Разрешить stateless"
 add rule  $family $std_table_filter $name_chain_awg_input $predefined_rule_2 comment "Запретить invalid"
 add rule  $family $std_table_filter $name_chain_awg_input iifname "$SERVER_PUB_NIC" udp dport $SERVER_PORT ${awg_counter} accept comment "Разрешить AmneziaWG"
-add rule  $family $std_table_filter $name_chain_awg_input iifname "$SERVER_PUB_NIC" ip saddr @${name_set_awg_trust_wan} tcp dport $SSH_PORT ct state new ${awg_counter} accept comment "Разрешить SSH для доверенных на $SERVER_PUB_NIC"
+add rule  $family $std_table_filter $name_chain_awg_input iifname "$SERVER_PUB_NIC" ip saddr @${name_set_awg_trust_wan} ct state new ${awg_counter} accept comment "Разрешить все с доверенных на $SERVER_PUB_NIC"
+add rule  $family $std_table_filter $name_chain_awg_input iifname "$SERVER_WG_NIC" ip saddr @${name_set_awg_trust_vpn} ct state new ${awg_counter} accept comment "Разрешить все с доверенных на $SERVER_WG_NIC"
+add rule  $family $std_table_filter $name_chain_awg_input iifname "$SERVER_WG_NIC" tcp dport 53 ct state new ${awg_counter} accept comment "Разрешить DNS tcp"
+add rule  $family $std_table_filter $name_chain_awg_input iifname "$SERVER_WG_NIC" udp dport 53 ct state new ${awg_counter} accept comment "Разрешить DNS tcp"
 add rule  $family $std_table_filter $name_chain_awg_input iifname "$SERVER_WG_NIC" ip saddr @${name_set_awg_trust_vpn} ct state new ${awg_counter} accept comment "Разрешить все с доверенных на $SERVER_WG_NIC"
 add rule  $family $std_table_filter $name_chain_awg_input iifname "$SERVER_PUB_NIC" ${awg_counter} jump scan_port comment "Антисканер портов, брутфорса SSH и т.д."
 add rule  $family $std_table_filter $name_chain_awg_input iifname "$SERVER_PUB_NIC" tcp dport $SSH_PORT ct state new ${awg_counter} accept comment "Разрешить SSH для остальных"
-add rule  $family $std_table_filter $name_chain_awg_input iifname "$SERVER_WG_NIC" tcp dport 53 ct state new ${awg_counter} accept comment "Разрешить DNS tcp"
-add rule  $family $std_table_filter $name_chain_awg_input iifname "$SERVER_WG_NIC" udp dport 53 ct state new ${awg_counter} accept comment "Разрешить DNS tcp"
 # add rule  $family $std_table_filter $name_chain_awg_input iifname "$SERVER_WG_NIC" tcp dport $SSH_PORT ct state new ${awg_counter} accept comment "Разрешить SSH для остальных"
 add rule  $family $std_table_filter $name_chain_awg_input ${awg_counter} return
 
@@ -295,9 +303,9 @@ add rule $family $std_table_filter $name_chain_awg_forward $predefined_rule_1 co
 add rule $family $std_table_filter $name_chain_awg_forward $predefined_rule_2 comment "Запретить invalid"
   # отладка: nft monitoring trace 
 add rule $family $std_table_filter $name_chain_awg_forward iifname "$SERVER_WG_NIC" oifname  "$SERVER_PUB_NIC" ip saddr { 192.168.15.99, 192.168.15.129,192.168.16.55, 192.168.15.202 } meta nftrace set 1
-add rule $family $std_table_filter $name_chain_awg_forward iifname "$SERVER_WG_NIC" ip saddr @${name_set_awg_trust_vpn} ${awg_counter} accept
-  # filter для DNAT $name_map_forward_acl : nft insert rule inet filter awg_forward handle 694 ip daddr . ip protocol . th dport map @map_forward_acl
-add rule $family $std_table_filter $name_chain_awg_forward ip daddr . ip protocol . th dport vmap @$name_map_forward_acl
+add rule $family $std_table_filter $name_chain_awg_forward iifname "$SERVER_WG_NIC" ip saddr @${name_set_awg_trust_vpn} ${awg_counter} accept comment "Разрешить все с доверенных на $SERVER_WG_NIC"
+  # filter для DNAT $name_map_forward_acl
+add rule $family $std_table_filter $name_chain_awg_forward iifname "$SERVER_PUB_NIC" ip daddr . ip protocol . th dport vmap @$name_map_forward_acl
 # add rule $family $std_table_filter $name_chain_awg_forward iifname "$SERVER_WG_NIC" oifname  "$SERVER_PUB_NIC" meta mark & ${mark_inet} == ${mark_inet} ${awg_counter} accept
 # add rule $family $std_table_filter $name_chain_awg_forward iifname "$SERVER_WG_NIC" oifname  "$SERVER_WG_NIC" meta mark & ${mark_vpn} == ${mark_vpn} ${awg_counter} accept
 add rule $family $std_table_filter $name_chain_awg_forward iifname "$SERVER_WG_NIC" oifname  "$SERVER_PUB_NIC" ct mark & ${mark_inet} == ${mark_inet} ${awg_counter} accept
@@ -320,7 +328,7 @@ else
   echo "# add rule ip $std_table_nat postrouting oifname \"$SERVER_PUB_NIC\" ${awg_counter} masquerade";
 fi)
   # prerouting: правило DNAT
-add rule ip $std_table_nat prerouting dnat to ip protocol . th dport map @$name_map_dnat
+add rule ip $std_table_nat prerouting iifname "$SERVER_PUB_NIC" dnat to ip protocol . th dport map @$name_map_dnat
 
   # --- установка элементов sets
 $(get_rule_element_set "$family $std_table_filter $name_set_awg_trust_wan" "$trust_wan")
@@ -503,7 +511,7 @@ elif [ "$action" = "add" ]; then
     fi
     if [ -n "${NFT_SEARCH_DOMAIN_LOCALNET}" ]; then
       # echo "NFT_SEARCH_DOMAIN_LOCALNET: ${NFT_SEARCH_DOMAIN_LOCALNET}"
-      resolvectl domain "${SERVER_WG_NIC}" $NFT_SEARCH_DOMAIN_LOCALNET
+      resolvectl domain "${SERVER_WG_NIC}" "${NFT_SEARCH_DOMAIN_LOCALNET}"
     fi
   fi
   init_nft

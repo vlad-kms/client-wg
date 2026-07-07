@@ -1198,8 +1198,10 @@ inst_iptables(){
             # добавить строку подключения файла с параметрами установки и доп.параметрами
             sed -i -E "1a# dir_conf используется только для вывода в тексте ошибки" "${script_rules}"
             sed -i -E "2adir_conf=\"${_fp} ${_fhp}\"" "${script_rules}"
-            sed -i -E "3aif [ -f \"${_fp}\" \]\;  then \. \"${_fp}\"\;  fi" "${script_rules}"
-            sed -i -E "4aif [ -f \"${_fhp}\" \]\; then \. \"${_fhp}\"\; fi" "${script_rules}"
+            sed -i -E "3a_fp=\"${_fp}\"" "${script_rules}"
+            sed -i -E "4a_fhp=\"${_fhp}\"" "${script_rules}"
+            sed -i -E "5aif [ -f \"\${_fp}\" \]\;  then \. \"\${_fp}\"\;  fi" "${script_rules}"
+            sed -i -E "6aif [ -f \"\${_fhp}\" \]\; then \. \"\${_fhp}\"\; fi" "${script_rules}"
 
             printf "PostUp=${script_rules} add\n" >> "${FILE_CONF_WG}"
             printf "PostDown=${script_rules} delete\n" >> "${FILE_CONF_WG}"
@@ -1478,6 +1480,10 @@ wg_install() {
     fi
     # файл hand_params, дополнительные параметры
     {
+        # здесь можно переопределить переменные из params.conf
+        printf "%s\n" "  ### SERVER_PORT переопределить переменную из params.conf"
+        printf "%s\n" "#SERVER_PORT=51821"
+        #
         printf "%s\n" "  ### Порт SSH"
         printf "%s\n" "  # SSH_PORT=22"
         printf "%s\n" "$(get_value_hand_param "SSH_PORT" "22")"
@@ -1560,7 +1566,7 @@ wg_install() {
   #     udp . 443  : 192.168.15.79 . 5555
   #   }
   # \""
-        printf "%s\n" "NFT_MAP_DNAT=\" type inet_proto . inet_service : ipv4_addr . inet_service; \""
+        printf "%s\n" "$(get_value_hand_param "NFT_MAP_DNAT" "")"
         printf "%s\n" "  ### Список ip . proto . port : action для правила в forward filter"
         printf "%s\n" \
   "  # NFT_MAP_FORWARD_ACL=\"
@@ -1573,7 +1579,7 @@ wg_install() {
   #     192.168.15.79 . udp . 443  : accept
   #   }
   # \""
-        printf "%s\n" "NFT_MAP_FORWARD_ACL=\" type ipv4_addr . inet_proto . inet_service : verdict; \""
+        printf "%s\n" "$(get_value_hand_param "NFT_MAP_FORWARD_ACL" "")"
     } >> "${file_hand_params}"
     # работа с настройками для iptables
     if which iptables > /dev/null 2>&1; then
