@@ -1578,6 +1578,9 @@ wg_install() {
   #   }
   # \""
         printf "%s\n" "$(get_value_hand_param "NFT_MAP_FORWARD_ACL" "")"
+        printf "%s\n" "  ### Использовать ARP table или нет"
+        printf "%s\n" "  # NFT_USE_ARP_TABLE=(1 OR 0)"
+        printf "%s\n" "$(get_value_hand_param "NFT_USE_ARP_TABLE" "0")"
     } >> "${file_hand_params}"
     # работа с настройками для iptables
     if which iptables > /dev/null 2>&1; then
