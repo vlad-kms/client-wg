@@ -24,6 +24,7 @@ name_set_awg_portscan=awg_portscan
 name_set_awg_ssh_ban=awg_ssh_ban
 name_set_awg_trust_wan=awg_trust_wan
 name_set_awg_trust_vpn=awg_trust_vpn
+name_set_awg_allowed_service=awg_allowed_service
 
 name_map_forward_acl=map_forward_acl
 name_map_dnat=map_dnat
@@ -168,6 +169,25 @@ init_nft() {
   else
     suffix_arp="# "
   fi
+
+  # NFT_ALLOWED_SERVICES="${:-}"
+  # добавить порт Wireguard
+  if [ -n "$SERVER_PORT" ] && [ -n "$WG_PROTO" ]; then
+    if [ -n "$NFT_ALLOWED_SERVICES" ]; then
+      NFT_ALLOWED_SERVICES="${NFT_ALLOWED_SERVICES},${WG_PROTO} . ${SERVER_PORT}"
+    else
+      NFT_ALLOWED_SERVICES="${WG_PROTO} . ${SERVER_PORT}"
+    fi
+  fi
+  # добавить порт SSH
+  if [ -n "$SSH_PORT" ]; then
+    if [ -n "$NFT_ALLOWED_SERVICES" ]; then
+      NFT_ALLOWED_SERVICES="${NFT_ALLOWED_SERVICES},tcp . ${SSH_PORT}"
+    else
+      NFT_ALLOWED_SERVICES="tcp . ${SSH_PORT}"
+    fi
+  fi
+
   cat > "$tmpfile" << EOF
   # TABLE arp $awg_table_arp %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 ${suffix_arp}add table arp $awg_table_arp
@@ -225,6 +245,7 @@ add set $family $std_table_filter $name_set_awg_trust_vpn { type ipv4_addr; flag
   # ---
 add set $family $std_table_filter $name_set_awg_nat_net { type ipv4_addr; flags interval; }
   # ---
+add set $family $std_table_filter $name_set_awg_allowed_service { type inet_proto . inet_service; flags interval; }
 # add set $family $std_table_filter $name_set_nat_inet_drop { type ipv4_addr; flags interval; }
 # add set $family $std_table_filter $name_set_awg_vpn_only  { type ipv4_addr; flags interval; }
 
@@ -245,6 +266,7 @@ add rule $family $std_table_filter $name_chain_logrej ${awg_counter} log prefix 
 add rule $family $std_table_filter $name_chain_logrej meta l4proto tcp ${awg_counter} reject with tcp reset
 add rule $family $std_table_filter $name_chain_logrej meta l4proto udp ${awg_counter} reject
 add rule $family $std_table_filter $name_chain_logrej ${awg_counter} reject with icmp type prot-unreachable
+
   # --- create chain scan_port
 add chain $family $std_table_filter $name_chain_scan_port
 # add rule $family $std_table_filter $name_chain_scan_port ip saddr @${name_set_awg_portscan} ${awg_counter} drop
@@ -255,18 +277,18 @@ add rule  $family $std_table_filter $name_chain_scan_port tcp flags fin / fin,ac
 add rule  $family $std_table_filter $name_chain_scan_port tcp flags fin,syn,rst,psh,ack,urg / fin,syn,rst,psh,ack,urg add @${name_set_awg_portscan} { ip saddr timeout 24h } ${awg_counter} jump logdrop
 add rule  $family $std_table_filter $name_chain_scan_port tcp flags ! fin,syn,rst,psh,ack,urg add @${name_set_awg_portscan} { ip saddr timeout 24h } ${awg_counter} jump logdrop
   # ЗАЩИТА ОТ СКАНЕРОВ ПОРТОВ (Port Scan Protection)
-  # Блокируем "закрытые" порты. Если атакующий обращается к портам, 
+  # Блокируем "закрытые" порты, не в списке NFT_ALLOWED_SERVICES. Если атакующий обращается к портам, 
   # которые не используются (например, 1-21, 23-79), его IP улетает в бан на 24 часа.
-add rule $family $std_table_filter  $name_chain_scan_port tcp dport { 1-21, 23-79, 81-442, 444-65535 } iifname "$SERVER_PUB_NIC" \
+#add rule $family $std_table_filter  $name_chain_scan_port tcp dport { 1-21, 23-79, 81-442, 444-65535 } iifname "$SERVER_PUB_NIC" \
     add @${name_set_awg_portscan} { ip saddr timeout 24h } ${awg_counter} \
     drop comment "ANTI scan tcp"
-# add rule $family $std_table_filter  $name_chain_scan_port udp dport { 1-$(( $SERVER_PORT - 1 )), $(( $SERVER_PORT + 1 ))-65535 } iifname "$SERVER_PUB_NIC" \
-#     add @${name_set_awg_portscan} { ip saddr timeout 24h } ${awg_counter} drop
-add rule $family $std_table_filter  $name_chain_scan_port udp dport \
+#add rule $family $std_table_filter  $name_chain_scan_port udp dport \
     { $(if [ $SERVER_PORT -eq 1 ]; then echo "2-65535"; else echo "1-$(( $SERVER_PORT - 1 )), $(( $SERVER_PORT + 1 ))-65535"; fi) } \
     iifname "$SERVER_PUB_NIC" \
     add @${name_set_awg_portscan} { ip saddr timeout 24h } ${awg_counter} drop \
     comment "ANTI scan udp"
+  # add rule inet filter input meta l4proto . th dport != @allowed_ips_ports drop
+add rule $family $std_table_filter $name_chain_scan_port meta l4proto . th dport != @$name_set_awg_allowed_service drop
   # ЗАЩИТА SSH ОТ БРУТФОРСА (SSH Bruteforce Protection)
   # Разрешено не более 4 новых подключений в минуту. Превышение = бан на 2 часа.
 add rule  $family $std_table_filter $name_chain_scan_port tcp dport 22 ct state new iifname "$SERVER_PUB_NIC" \
@@ -280,6 +302,7 @@ add rule  $family $std_table_filter $name_chain_scan_port tcp dport 22 ct state 
     comment "Не более 10 новых подключений за 1 час"
   # Возврат для чистых пакетов
 add rule  $family $std_table_filter $name_chain_scan_port ${awg_counter} return
+
   # --- INPUT $name_chain_awg_input
 add chain $family $std_table_filter $name_chain_awg_input
   # отладка: nft monitoring trace 
@@ -337,6 +360,8 @@ $(get_rule_element_set "$family $std_table_filter $name_set_awg_trust_wan" "$tru
 $(get_rule_element_set "$family $std_table_filter $name_set_awg_trust_vpn" "$trust_vpn")
   # ---
 $(get_rule_element_set "$family $std_table_filter $name_set_awg_nat_net" "$nat_net")
+  # ---
+$(get_rule_element_set "$family $std_table_filter $name_set_awg_allowed_service" "$NFT_ALLOWED_SERVICES")
 # ==================================================================================================================================================================
 EOF
 
@@ -439,6 +464,11 @@ destroy_awg_table() {
   if nft -a list table $family $std_table_filter | grep -e "set.*$name_set_awg_ssh_ban" 2>&1 >/dev/null; then
     #nft flush set $family $std_table_filter $name_set_awg_ssh_ban
     nft delete set $family $std_table_filter $name_set_awg_ssh_ban
+  fi
+  # set $name_set_awg_allowed_service
+  if nft -a list table $family $std_table_filter | grep -e "set.*$name_set_awg_allowed_service" 2>&1 >/dev/null; then
+    #nft flush set $family $std_table_filter $name_set_awg_allowed_service
+    nft delete set $family $std_table_filter $name_set_awg_allowed_service
   fi
   # map $name_map_forward_acl   =map_forward_acl
   if nft -a list table $family $std_table_filter | grep -e "map.*$name_map_forward_acl" 2>&1 >/dev/null; then
