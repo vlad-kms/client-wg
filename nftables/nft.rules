@@ -163,19 +163,23 @@ init_nft() {
 
   # DEFAULT_ROUTE=""
   # PROVIDER_GW_MAC=""
-
+  if [ $NFT_USE_ARP_TABLE -eq 1 ]; then
+    suffix_arp=
+  else
+    suffix_arp="# "
+  fi
   cat > "$tmpfile" << EOF
   # TABLE arp $awg_table_arp %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-add table arp $awg_table_arp
-add chain arp $awg_table_arp input  { type filter hook input priority filter - $awg_priority; policy drop; }
-add chain arp $awg_table_arp output { type filter hook output priority filter - $awg_priority; policy accept; }
-$(if [ -n "$DEFAULT_ROUTE" ] && [ -n "${PROVIDER_GW_MAC}" ]; then \
+${suffix_arp}add table arp $awg_table_arp
+${suffix_arp}add chain arp $awg_table_arp input  { type filter hook input priority filter - $awg_priority; policy drop; }
+${suffix_arp}add chain arp $awg_table_arp output { type filter hook output priority filter - $awg_priority; policy accept; }
+${suffix_arp}$(if [ -n "$DEFAULT_ROUTE" ] && [ -n "${PROVIDER_GW_MAC}" ]; then \
   echo "# Разрешаем ARP-ответы ТОЛЬКО от легитимного шлюза провайдера"; \
   echo "add rule arp $awg_table_arp input iifname \"$SERVER_PUB_NIC\" arp saddr ip \"$DEFAULT_ROUTE\" arp saddr ether \"${PROVIDER_GW_MAC}\" accept comment \"Разрешить только от шлюза провайдера\""; \
 fi)
   # Разрешаем ЛЮБЫЕ входящие ARP-запросы к нашему серверу (чтобы другие видели нас)
   # Но ЗАПРЕЩАЕМ входящие ARP-ответы (reply) от кого-либо, кроме шлюза из п.1
-add rule arp $awg_table_arp input iifname "$SERVER_PUB_NIC" arp operation request accept comment "Разрешаем ARP-запросы к нам"
+${suffix_arp}add rule arp $awg_table_arp input iifname "$SERVER_PUB_NIC" arp operation request accept comment "Разрешаем ARP-запросы к нам"
 
   # TABLE inet $awg_table_mangle %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 add table $family $awg_table_mangle
