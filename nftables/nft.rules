@@ -165,8 +165,6 @@ init_nft() {
   # PROVIDER_GW_MAC=""
 
   cat > "$tmpfile" << EOF
-# сделать цепочки без хуков, т.е. вызываемые из соответствующих стандартных с хуками
-
   # TABLE arp $awg_table_arp %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 add table arp $awg_table_arp
 add chain arp $awg_table_arp input  { type filter hook input priority filter - $awg_priority; policy drop; }
@@ -227,8 +225,8 @@ add set $family $std_table_filter $name_set_awg_nat_net { type ipv4_addr; flags 
 # add set $family $std_table_filter $name_set_awg_vpn_only  { type ipv4_addr; flags interval; }
 
   # --- MAPS
-add map $family $std_table_filter $name_map_forward_acl {$NFT_MAP_FORWARD_ACL}
-add map ip      $std_table_nat    $name_map_dnat        {$NFT_MAP_DNAT}
+add map $family $std_table_filter $name_map_forward_acl { type ipv4_addr . inet_proto . inet_service : verdict; elements={${NFT_MAP_FORWARD_ACL}} }
+add map ip $std_table_nat $name_map_dnat { type inet_proto . inet_service : ipv4_addr . inet_service; elements={${NFT_MAP_DNAT}} }
 
   # CHAINS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   # --- create chain $name_chain_logdrop
@@ -286,7 +284,7 @@ add rule  $family $std_table_filter $name_chain_awg_input $predefined_rule_0 com
 add rule  $family $std_table_filter $name_chain_awg_input $predefined_rule_1 comment "Разрешить stateless"
 add rule  $family $std_table_filter $name_chain_awg_input $predefined_rule_2 comment "Запретить invalid"
 add rule  $family $std_table_filter $name_chain_awg_input iifname "$SERVER_PUB_NIC" udp dport $SERVER_PORT ${awg_counter} accept comment "Разрешить AmneziaWG"
-add rule  $family $std_table_filter $name_chain_awg_input iifname "$SERVER_PUB_NIC" ip saddr @${name_set_awg_trust_wan} ct state new ${awg_counter} accept comment "Разрешить все с доверенных на $SERVER_PUB_NIC"
+add rule  $family $std_table_filter $name_chain_awg_input iifname "$SERVER_PUB_NIC" ip saddr @${name_set_awg_trust_wan} tcp dport ${SSH_PORT} ct state new ${awg_counter} accept comment "Разрешить SSH с доверенных на $SERVER_PUB_NIC"
 add rule  $family $std_table_filter $name_chain_awg_input iifname "$SERVER_WG_NIC" ip saddr @${name_set_awg_trust_vpn} ct state new ${awg_counter} accept comment "Разрешить все с доверенных на $SERVER_WG_NIC"
 add rule  $family $std_table_filter $name_chain_awg_input iifname "$SERVER_WG_NIC" tcp dport 53 ct state new ${awg_counter} accept comment "Разрешить DNS tcp"
 add rule  $family $std_table_filter $name_chain_awg_input iifname "$SERVER_WG_NIC" udp dport 53 ct state new ${awg_counter} accept comment "Разрешить DNS tcp"
@@ -498,6 +496,19 @@ if [ "$action" = "del" ]; then
   # resolvectl revert awg0
   destroy_awg_table
 elif [ "$action" = "add" ]; then
+  if ! get_handle_elem "$family $std_table_filter" "table $family $std_table_filter" > /dev/null; then
+    #echo "# Создаем таблицу \"$family $std_table_filter\""
+    nft add table "$family" "$std_table_filter"
+    nft add chain "$family" "$std_table_filter" input   { type filter hook input   priority filter\; policy accept\; }
+    nft add chain "$family" "$std_table_filter" forward { type filter hook forward priority filter\; policy accept\; }
+    nft add chain "$family" "$std_table_filter" output  { type filter hook output  priority filter\; policy accept\; }
+  fi
+  if ! get_handle_elem "$family_ip $std_table_nat" "table $family_ip $std_table_nat" > /dev/null; then
+    nft add table "$family_ip" "$std_table_nat"
+    nft add chain "$family_ip" "$std_table_nat" postrouting { type nat hook postrouting priority srcnat\; policy accept\; }
+    nft add chain "$family_ip" "$std_table_nat" prerouting  { type nat hook prerouting  priority dstnat\; policy accept\; }
+  fi
+
   destroy_awg_table
   if [ -n "${SERVER_WG_NIC}" ] &&  ip l | grep -e ":\s*${SERVER_WG_NIC}:" >/dev/null &&
     command -v resolvectl > /dev/null &&
