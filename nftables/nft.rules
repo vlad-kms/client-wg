@@ -133,7 +133,9 @@ safe_apply_rules() {
     nft -f "$tmpfile_bak_rules"
     return 1
   fi
-                                                                                                        
+  if [ -f "$NFT_FILENAME_CUSTOM_RULES" ]; then
+    . "$NFT_FILENAME_CUSTOM_RULES"
+  fi
   echo "Правила успешно применены"
   return 0
 }
