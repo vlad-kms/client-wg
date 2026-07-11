@@ -313,6 +313,13 @@ add chain $family $std_table_filter $name_chain_awg_input
 # add rule  $family $std_table_filter $name_chain_awg_input tcp dport 22 meta nftrace set 1
 add rule  $family $std_table_filter $name_chain_awg_input $predefined_rule_0 comment "Разрешить все на интерфейсе lo"
 add rule  $family $std_table_filter $name_chain_awg_input $predefined_rule_1 comment "Разрешить stateless"
+  # Разрешаем основные типы ICMP для IPv4
+add rule  $family $std_table_filter $name_chain_awg_input iifname "$SERVER_PUB_NIC" ip protocol icmp \
+    icmp type { destination-unreachable, time-exceeded, parameter-problem, echo-request, echo-reply } limit rate 5/second accept
+  # Разрешаем основные типы ICMPv6 (включая Neighbor Discovery)
+add rule  $family $std_table_filter $name_chain_awg_input iifname "$SERVER_PUB_NIC"  meta l4proto ipv6-icmp \
+    icmpv6 type { destination-unreachable, packet-too-big, time-exceeded, parameter-problem, nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert, echo-request } \
+    limit rate 5/second accept
 add rule  $family $std_table_filter $name_chain_awg_input $predefined_rule_2 comment "Запретить invalid"
 add rule  $family $std_table_filter $name_chain_awg_input iifname "$SERVER_PUB_NIC" udp dport $SERVER_PORT ${awg_counter} accept comment "Разрешить AmneziaWG"
 add rule  $family $std_table_filter $name_chain_awg_input iifname "$SERVER_PUB_NIC" ip saddr @${name_set_awg_trust_wan} tcp dport ${SSH_PORT} ct state new ${awg_counter} accept comment "Разрешить SSH с доверенных на $SERVER_PUB_NIC"
