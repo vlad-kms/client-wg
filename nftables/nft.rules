@@ -287,8 +287,10 @@ add rule  $family $std_table_filter $name_chain_scan_port tcp flags ! fin,syn,rs
     iifname "$SERVER_PUB_NIC" \
     add @${name_set_awg_portscan} { ip saddr timeout 24h } ${awg_counter} drop \
     comment "ANTI scan udp"
-  # add rule inet filter input meta l4proto . th dport != @allowed_ips_ports drop
-add rule $family $std_table_filter $name_chain_scan_port meta l4proto . th dport != @$name_set_awg_allowed_service drop
+add rule $family $std_table_filter $name_chain_scan_port meta l4proto . th dport != @$name_set_awg_allowed_service \
+    iifname "${SERVER_PUB_NIC}" \
+    add @${name_set_awg_portscan} { ip saddr timeout 24h } ${awg_counter} drop \
+    comment "ANTI scan ports"
   # ЗАЩИТА SSH ОТ БРУТФОРСА (SSH Bruteforce Protection)
   # Разрешено не более 4 новых подключений в минуту. Превышение = бан на 2 часа.
 add rule  $family $std_table_filter $name_chain_scan_port tcp dport 22 ct state new iifname "$SERVER_PUB_NIC" \
