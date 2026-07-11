@@ -1580,6 +1580,10 @@ wg_install() {
         printf "%s\n" "  ### Список разрешенных сервисов на сервере"
         printf "%s\n" "  # NFT_ALLOWED_SERVICES='tcp . 22, tcp . 3306, udp . 53'"
         printf "%s\n" "$(get_value_hand_param "NFT_ALLOWED_SERVICES" "")"
+        printf "%s\n" "  ### Имя файла с пользовательскими правилами nft"
+        printf "%s\n" "  # NFT_FILENAME_CUSTOM_RULES=custom_rules.sh"
+        printf "%s\n" "$(get_value_hand_param "NFT_FILENAME_CUSTOM_RULES" "custom_rules.sh")"
+
     } >> "${file_hand_params}"
     # работа с настройками для iptables
     if which iptables > /dev/null 2>&1; then
