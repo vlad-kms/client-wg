@@ -133,8 +133,8 @@ safe_apply_rules() {
     nft -f "$tmpfile_bak_rules"
     return 1
   fi
-  if [ -f "$NFT_FILENAME_CUSTOM_RULES" ]; then
-    . "$NFT_FILENAME_CUSTOM_RULES"
+  if [ -f "${dir_conf}/${NFT_FILENAME_CUSTOM_RULES}" ]; then
+    . "${dir_conf}/${NFT_FILENAME_CUSTOM_RULES}"
   fi
   echo "Правила успешно применены"
   return 0
@@ -526,7 +526,7 @@ for var in $required_vars; do
 done
 if [ -n "$missing_vars" ]; then
   echo "❌ Ошибка: Не определены переменные:$missing_vars"
-  echo "   Проверьте файлы конфигурации в $dir_conf/"
+  echo "   Проверьте файлы конфигурации в $files_conf/"
   exit 1
 fi
 
