@@ -1197,7 +1197,7 @@ inst_iptables(){
             sed -i -En '/^#!/{:a; p; n; ba}' "${script_rules}" && sed -i '2,${/#!/d}' "${script_rules}"
             # добавить строку подключения файла с параметрами установки и доп.параметрами
             sed -i -E "1a# dir_conf путь куда собираются файлы конфигурации и скрипт для firewall" "${script_rules}"
-            sed -i -E "2adir_conf=\"${path_wg}\"" "${script_rules}"
+            sed -i -E "2adir_conf=\"$(realpath -m "${path_wg}")\"" "${script_rules}"
             sed -i -E "3a# files_conf используется только для вывода в тексте ошибки" "${script_rules}"
             sed -i -E "4afiles_conf=\"${_fp} ${_fhp}\"" "${script_rules}"
             sed -i -E "5a_fp=\"${_fp}\"" "${script_rules}"
@@ -1582,7 +1582,11 @@ wg_install() {
         printf "%s\n" "  ### Список разрешенных сервисов на сервере"
         printf "%s\n" "  # NFT_ALLOWED_SERVICES='tcp . 22, tcp . 3306, udp . 53'"
         printf "%s\n" "$(get_value_hand_param "NFT_ALLOWED_SERVICES" "")"
-        printf "%s\n" "  ### Имя файла с пользовательскими правилами nft"
+        printf "%s\n" "  ### Имя файла shell-скрипта с пользовательскими правилами nft."
+        printf "%s\n" "  ### В файле можно использовать все переменные из файлов params.conf и hand_params.conf."
+        printf "%s\n" "  ### Также можно использовать переменные из сформированного файла apply_rules.sh."
+        printf "%s\n" "  ### Пример строки из файла:"
+        printf "%s\n" '  ### nft insert rule $family $std_table_filter $name_chain_awg_input index 3 iifname \"$SERVER_PUB_NIC\" ip saddr 0.0.0.0 udp sport 68 ct state new $awg_counter drop comment \"Drop HCP\"'
         printf "%s\n" "  # NFT_FILENAME_CUSTOM_RULES=custom_rules.sh"
         printf "%s\n" "$(get_value_hand_param "NFT_FILENAME_CUSTOM_RULES" "custom_rules.sh")"
 
