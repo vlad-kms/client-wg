@@ -1,425 +1,193 @@
 📚 Документация: wg-mgr.sh
 📌 Назначение
-wg-mgr.sh — это универсальный скрипт для управления WireGuard VPN сервером.
+wg-mgr.sh — это мощный и гибкий скрипт для автоматизации развертывания и управления VPN-серверами на базе WireGuard и AmneziaWG.
 
-Важно:
+Для WireGuard: Полная поддержка: установка, настройка, управление клиентами и файрволом (nftables).
 
-Для WireGuard — полная установка и управление
-
-Для AmneziaWG — только подготовка конфигурационных файлов (запуск с --dry-run)
+Для AmneziaWG: Подготовка всех необходимых конфигурационных файлов и правил файрвола (--dry-run). Установка AmneziaWG выполняется отдельно.
 
 🏗️ Архитектура системы
 text
 wg-mgr.sh
-├── prepare     → Создает конфигурационные файлы для установки
-├── install     → Устанавливает WireGuard (НЕ AmneziaWG!)
-├── client      → Управление клиентами WireGuard
-├── uninstall   → Удаление (TODO)
+├── Команды:
+│   ├── prepare     → Создает базовый конфигурационный файл (vars4install.conf)
+│   ├── install     → Устанавливает WireGuard и настраивает сервер
+│   ├── client      → Управление клиентами (add, del, list, count)
+│   └── uninstall   → Удаление (в разработке)
 │
 ├── Конфигурационные файлы:
 │   ├── vars4install.conf    → Параметры для установки
-│   ├── params.conf          → Основные параметры сервера
-│   ├── hand_params.conf     → Дополнительные параметры для firewall
-│   └── last-args.conf       → Сохраненные аргументы
+│   ├── params.conf          → Основные параметры сервера (создается при install)
+│   ├── hand_params.conf     → Дополнительные параметры для файрвола (создается при install)
+│   └── last-args.conf       → Сохраненные аргументы командной строки
 │
-└── Шаблоны:
-    ├── template-server.tmpl → Шаблон конфигурации на сервере
-    └── template-client.tmpl → Шаблон конфигурации для клиента
+└── Шаблоны и скрипты:
+    ├── template-server.tmpl → Шаблон для добавления клиента на сервер
+    ├── template-client.tmpl → Шаблон для создания конфигурации клиента
+    └── apply_rules.sh       → Скрипт для настройки nftables (генерируется из nft.rules.sh)
 📂 Конфигурационные файлы
-1. vars4install.conf — параметры для установки
-Создается командой prepare. Содержит переменные с префиксом INST_*.
+1. vars4install.conf — Параметры для установки
+Создается командой prepare. Используется командой install. Содержит переменные с префиксом INST_*.
 
 Переменная	Описание	Пример
 INST_SERVER_PUB_NIC	Публичный сетевой интерфейс	ens3
-INST_SERVER_PUB_IP	Публичный IP сервера	192.168.15.41
-INST_SERVER_WG_NIC	Имя WireGuard интерфейса	wg0
-INST_SERVER_WG_IPV4	IPv4 сервера в VPN	10.66.66.1/24
-INST_SERVER_WG_IPV6	IPv6 сервера в VPN	fc00:66:66:66::1/64
-INST_SERVER_PORT	Порт WireGuard	60888
+INST_SERVER_PUB_IP	Публичный IP-адрес сервера	192.168.15.41
+INST_SERVER_WG_NIC	Имя WireGuard/AmneziaWG интерфейса	awg0
+INST_SERVER_WG_IPV4	IPv4-адрес сервера в VPN	10.9.8.1/24
+INST_SERVER_WG_IPV6	IPv6-адрес сервера в VPN	fc00:66:66:66::1/64
+INST_SERVER_PORT	Порт для подключений	45732
 INST_SERVER_PRIV_KEY	Приватный ключ сервера	(генерируется)
 INST_SERVER_PUB_KEY	Публичный ключ сервера	(генерируется)
-INST_CLIENT_DNS	DNS для клиентов	1.1.1.1,1.0.0.1
-INST_ALLOWED_IPS	Разрешенные IP для клиентов	0.0.0.0/0,::/0
-2. params.conf — основные параметры сервера
-Создается командой install. Используется для управления клиентами.
+INST_CLIENT_DNS	DNS-серверы для клиентов	1.1.1.1,1.0.0.1
+INST_ALLOWED_IPS	Разрешенные IP-сети для клиентов	0.0.0.0/0,::/0
+2. params.conf — Основные параметры сервера
+Создается командой install. Используется для управления клиентами и файрволом.
 
 Переменная	Описание	Пример
 SERVER_PUB_NIC	Публичный интерфейс	ens3
-SERVER_PUB_IP	Публичный IP	192.168.15.41
-SERVER_WG_NIC	WireGuard интерфейс	wg13
-SERVER_WG_IPV4	IPv4 сервера	172.25.25.254
-SERVER_WG_IPV4_MASK	Маска подсети	24
-SERVER_WG_IPV6	IPv6 сервера	(опционально)
-SERVER_WG_IPV6_MASK	Маска IPv6	(опционально)
-SERVER_PORT	Порт WireGuard	62141
+SERVER_PUB_IP	Публичный IP-адрес	45.95.233.101
+SERVER_WG_NIC	Имя интерфейса VPN	awg0
+SERVER_WG_IPV4	IPv4-адрес сервера	10.9.8.1
+SERVER_WG_IPV4_MASK	Маска подсети IPv4	24
+SERVER_PORT	Порт сервера	45732
 SERVER_PRIV_KEY	Приватный ключ	(скрыт)
 SERVER_PUB_KEY	Публичный ключ	(скрыт)
-CLIENT_DNS	DNS для клиентов	1.1.1.1
-ALLOWED_IPS	Разрешенные IP	0.0.0.0/0,::/0
-3. hand_params.conf — параметры для firewall
-Создается командой install. Используется в apply_rules.sh.
+CLIENT_DNS	DNS для клиентов	1.1.1.1,1.0.0.1
+ALLOWED_IPS	Разрешенные IP-сети	0.0.0.0/0
+3. hand_params.conf — Параметры для файрвола (nftables)
+Создается командой install. Используется в apply_rules.sh. Содержит множество настроек для гибкой сегментации сети и безопасности.
+
+Основные переменные:
 
 Переменная	Описание	Пример
-SSH_PORT	Порт SSH	22
-WG_PROTO	Протокол VPN	udp
-WG_NET	VPN сеть	172.25.25.0/24
-PROVIDER_GW_MAC	MAC шлюза провайдера	08:05:e2:fa:07:f0
-PROVIDER_GW_IP	IP шлюза (опционально)	45.95.233.1
-NFT_COUNTER	Включить счетчики	counter
-NFT_NAT_NET	Сети для NAT	192.168.15.0/24
-NFT_LIST_TRUST_WAN	Доверенные WAN	cl.vpn.mrovo.ru
-NFT_LIST_TRUST_VPN	Доверенные VPN	192.168.15.0/24
-NFT_LIST_VPN	Клиенты с доступом в LAN	(список IP)
-NFT_LIST_VPN_ONLY	Клиенты только с LAN	(список IP)
-NFT_LIST_INET_DROP	Клиенты без интернета	(список IP)
+SSH_PORT	Порт SSH для защиты от брутфорса	22
+WG_PROTO	Протокол VPN (udp для WG/AWG)	udp
+WG_NET	VPN-сеть в формате CIDR	10.9.8.0/24
+PROVIDER_GW_MAC	MAC-адрес шлюза провайдера (для защиты ARP)	"08:05:e2:fa:07:f0"
+NFT_COUNTER	Включает счетчики пакетов в nftables	counter
+NFT_NAT_NET	Сети, для которых будет работать NAT	"192.168.15.0/24"
+Списки доступа:		
+NFT_LIST_TRUST_WAN	Доверенные IP-адреса из WAN (например, для SSH)	'cl.vpn.mrovo.ru'
+NFT_LIST_TRUST_VPN	Доверенные IP-адреса из VPN-сети	"10.9.8.2, 192.168.15.202"
+NFT_LIST_VPN	Клиенты с доступом в LAN	"10.9.8.3"
+NFT_LIST_VPN_ONLY	Клиенты только с доступом в LAN	"10.9.8.4"
+NFT_LIST_INET_DROP	Клиенты без доступа в Интернет	"10.9.8.5"
+DNS и сервисы:		
+NFT_DNS_LOCALNET	DNS-сервер для VPN-клиентов (resolvectl)	192.168.15.3
+NFT_SEARCH_DOMAIN_LOCALNET	Домены поиска для VPN-клиентов	"home.lan"
+NFT_ALLOWED_SERVICES	Разрешенные сервисы на сервере (для защиты от сканирования)	'tcp . 80, tcp . 443'
+DNAT и ACL:		
+NFT_MAP_DNAT	Правила DNAT (проброс портов)	"tcp . 443 : 192.168.15.79 . 443"
+NFT_MAP_FORWARD_ACL	Правила фильтрации на FORWARD	"192.168.15.79 . tcp . 80 : accept"
 🚀 Команды
-prepare — подготовка конфигурации
-bash
-wg-mgr.sh prepare [options]
+prepare — Подготовка конфигурации
 Автоматически создает файл vars4install.conf с параметрами для установки.
 
+bash
+wg-mgr.sh prepare [options]
 Опции:
 
 Опция	Описание	Пример
--c, --config <filename>	Имя файла конфигурации	-c myconfig.conf
--i, --wg-nic <IFACE>	Имя интерфейса	-i wg0
---ip4 <address/mask>	IPv4 сервера	--ip4 10.66.66.1/24
---ip6 <address/mask>	IPv6 сервера	--ip6 fc00::1/64
---dns <list>	DNS серверы	--dns 8.8.8.8,1.1.1.1
--e, --allowed-ips <list>	Разрешенные IP	-e 0.0.0.0/0,::/0
+-c, --config <filename>	Имя файла конфигурации	-c awg.conf
+-i, --wg-nic <IFACE>	Имя интерфейса	-i awg0
+--ip4 <address/mask>	IPv4-адрес сервера	--ip4 10.9.8.1/24
+--ip6 <address/mask>	IPv6-адрес сервера	--ip6 fc00::1/64
+--dns <list>	DNS-серверы	--dns 8.8.8.8,1.1.1.1
+-e, --allowed-ips <list>	Разрешенные IP-сети	-e 0.0.0.0/0,::/0
 Примеры:
 
 bash
-# Создать конфиг с настройками по умолчанию
-wg-mgr.sh prepare
-
-# Создать конфиг для AmneziaWG (только подготовка!)
+# Базовый конфиг
 wg-mgr.sh prepare -c awg.conf -i awg0 --ip4 10.9.8.1/24
+install — Установка WireGuard
+Важно: Эта команда устанавливает только WireGuard. Для AmneziaWG используйте --dry-run для генерации файлов.
 
-# Создать конфиг с пользовательскими параметрами
-wg-mgr.sh prepare -c vps.conf -i wg0 --ip4 10.18.18.1/24 --dns 8.8.8.8
-
-# Создать конфиг с IPv6
-wg-mgr.sh prepare -i wg1 --ip4 10.77.77.1/24 --ip6 fd00:77:77::1/64
-install — установка WireGuard (НЕ AmneziaWG!)
 bash
 wg-mgr.sh install [options]
-Важно: Эта команда устанавливает только WireGuard. Для AmneziaWG используйте prepare с --dry-run для подготовки конфигураций.
-
-Устанавливает WireGuard, настраивает системные параметры, создает конфигурацию и применяет правила файервола.
-
 Опции:
 
 Опция	Описание	Пример
--c, --config <filename>	Файл с параметрами установки	-c vars4install.conf
--i, --wg-nic <IFACE>	Имя интерфейса	-i wg0
---ip4 <address/mask>	IPv4 сервера	--ip4 10.66.66.1/24
---ip6 <address/mask>	IPv6 сервера	--ip6 fc00::1/64
---dns <list>	DNS серверы	--dns 8.8.8.8
--e, --allowed-ips <list>	Разрешенные IP	-e 0.0.0.0/0
--p, --params <filename>	Файл параметров	-p params.conf
--d, --hand-params <filename>	Дополнительный конфиг	-d hand_params.conf
--r, --rules-iptables <filename>	Шаблон правил firewall	-r ./iptables/rules.sh
--w, --wg-path <path>	Путь к WireGuard	-w /etc/wireguard
--o, --out-path <path>	Путь для клиентов	-o /etc/wireguard/clients
--t, --option <StringOptions>	Дополнительные опции для hand_params.conf	-t "SSH_PORT=2222"
--u, --update-args	Обновить last-args.conf	-u
---dry-run	Пробный запуск	--dry-run
+-c, --config <filename>	Файл с параметрами установки	-c awg.conf
+-i, --wg-nic <IFACE>	Имя интерфейса	-i awg0
+-p, --params <filename>	Файл параметров (по умолч. params.conf)	-p params.conf
+-d, --hand-params <filename>	Дополнительный конфиг для файрвола	-d hand_params.conf
+-t, --option <StringOptions>	Передать параметры в hand_params.conf	-t "SSH_PORT=2222; NFT_LIST_VPN=10.9.8.2"
+--dry-run	Пробный запуск (генерация файлов без установки)	--dry-run
 --debug	Отладочный вывод	--debug
--x, --allow-lxc	Установка в LXC	-x
 Примеры:
 
 bash
-# Установка WireGuard с подготовленным конфигом
-wg-mgr.sh install -c vars4install.conf
+# Установка WireGuard
+wg-mgr.sh install -c awg.conf
 
-# Установка WireGuard с пользовательскими параметрами
-wg-mgr.sh install -i wg0 --ip4 10.18.18.1/24 --dns 8.8.8.8
+# Подготовка файлов для AmneziaWG
+wg-mgr.sh install -c awg.conf --dry-run
+client — Управление клиентами
+Управляет клиентами WireGuard/AmneziaWG.
 
-# Установка в LXC контейнере
-wg-mgr.sh install --allow-lxc
-
-# Пробный запуск с отладкой
-wg-mgr.sh install -c my.conf --dry-run --debug
-client — управление клиентами
 bash
 wg-mgr.sh client [options]
-Управляет клиентами WireGuard: добавляет, удаляет, показывает список.
-
 Опции:
 
 Опция	Описание	Пример
 -a, --action <action>	Действие: add, del, list, count	-a add
 -n, --name <name>	Имя клиента	-n client1
--i, --wg-nic <IFACE>	Имя интерфейса	-i wg0
---ip4 <address/mask>	IPv4 клиента	--ip4 10.18.18.2/24
---ip6 <address/mask>	IPv6 клиента	--ip6 fd00::2/64
--e, --allowed-ips <list>	Разрешенные IP для клиента	-e 10.18.18.2/32
---dns <list>	DNS для клиента	--dns 8.8.8.8
--k, --keepalive <sec>	PersistentKeepalive	-k 25
--p, --params <filename>	Файл параметров	-p params.conf
--d, --hand-params <filename>	Дополнительный конфиг	-d hand_params.conf
--w, --wg-path <path>	Путь к WireGuard	-w /etc/wireguard
--o, --out-path <path>	Путь для клиентов	-o ./clients
---all	Показать всех клиентов	--all
---dry-run	Пробный запуск	--dry-run
---debug	Отладочный вывод	--debug
-Действия (-a, --action):
-
-Значение	Описание
-add, a, new	Добавить нового клиента
-del, d, delete	Удалить клиента
-list, l	Показать список клиентов
-count, c	Показать количество активных клиентов
+-i, --wg-nic <IFACE>	Имя интерфейса сервера	-i awg0
+--ip4 <address/mask>	IPv4-адрес клиента	--ip4 10.9.8.2/24
+-k, --keepalive <sec>	PersistentKeepalive для клиентов за NAT	-k 25
+-p, --params <filename>	Файл параметров сервера	-p params.conf
 Примеры:
 
 bash
 # Добавить клиента
-wg-mgr.sh client -a add -n laptop -i wg0 --ip4 10.18.18.2/24
-
-# Добавить клиента с IPv6 и кастомным DNS
-wg-mgr.sh client -a add -n mobile -i wg0 --ip4 10.18.18.3/24 --ip6 fd00::3/64 --dns 8.8.8.8
-
-# Добавить клиента с PersistentKeepalive (для клиентов за NAT)
-wg-mgr.sh client -a add -n nat-client -i wg0 --ip4 10.18.18.4/24 -k 25
+wg-mgr.sh client -a add -n client1 -i awg0 --ip4 10.9.8.2/24
 
 # Список клиентов
-wg-mgr.sh client -a list -i wg0
-
-# Список всех клиентов (включая неуправляемые)
-wg-mgr.sh client -a list -i wg0 --all
+wg-mgr.sh client -a list -i awg0
 
 # Удалить клиента
-wg-mgr.sh client -a del -n laptop -i wg0
-
-# Количество активных клиентов
-wg-mgr.sh client -a count -i wg0
-uninstall — удаление (TODO)
-bash
-wg-mgr.sh uninstall
-Внимание: Команда пока не реализована (отмечена как TODO).
-
+wg-mgr.sh client -a del -n client1 -i awg0
 🔧 Использование для AmneziaWG
-Подготовка конфигурационных файлов
-Для AmneziaWG скрипт используется только для подготовки конфигурационных файлов с ключом --dry-run:
+Подготовка конфигурации:
 
 bash
-# 1. Подготовить конфиг для AmneziaWG
 wg-mgr.sh prepare -c awg.conf -i awg0 --ip4 10.9.8.1/24
-
-# 2. Просмотреть, что будет создано при установке (без реальных изменений)
-wg-mgr.sh install -c awg.conf --dry-run --debug
-
-# 3. Получить готовые конфигурационные файлы
-#    - vars4install.conf / awg.conf
-#    - params.conf (будет создан при install --dry-run)
-#    - hand_params.conf (будет создан при install --dry-run)
-#    - apply_rules.sh (шаблон для nftables)
-
-# 4. Использовать полученные файлы для ручной установки AmneziaWG
-Что создается при --dry-run:
-
-params.conf — основные параметры сервера
-
-hand_params.conf — параметры для nftables
-
-apply_rules.sh — скрипт настройки nftables (из шаблона)
-
-last-args.conf — сохраненные аргументы
-
-Пример:
+Генерация всех файлов (без установки):
 
 bash
-# Подготовка конфига для AmneziaWG
-wg-mgr.sh prepare -c awg.conf -i awg0 --ip4 10.9.8.1/24
-
-# Генерация всех файлов без установки
 wg-mgr.sh install -c awg.conf --dry-run --debug
+Этот шаг создаст все необходимые файлы: params.conf, hand_params.conf, apply_rules.sh.
 
-# Результат:
-# /etc/wireguard/awg0.conf          # Конфигурация AmneziaWG (только параметры)
-# /etc/wireguard/params.conf        # Основные параметры
-# /etc/wireguard/hand_params.conf   # Параметры для nftables
-# /etc/wireguard/apply_rules.sh     # Скрипт nftables
-# /etc/wireguard/.clients/          # Каталог для клиентов
-🆕 Дополнительные опции: -t, --option
-Аргумент -t, --option позволяет передавать произвольные параметры конфигурации прямо из командной строки в формате NAME=VALUE. Эти параметры затем используются при генерации файла hand_params.conf.
+Ручная установка AmneziaWG:
+Используйте сгенерированные файлы для настройки сервера AmneziaWG и файрвола.
 
-Формат: NAME_OPTION=VALUE_OPTION
-
-Несколько опций: разделяются точкой с запятой (;)
-
-Доступные опции: все переменные из hand_params.conf:
-
-SSH_PORT
-
-WG_PROTO
-
-PROVIDER_GW_MAC
-
-PROVIDER_GW_IP
-
-NFT_COUNTER
-
-NFT_NAT_NET
-
-NFT_LIST_TRUST_WAN
-
-NFT_LIST_TRUST_VPN
-
-NFT_LIST_VPN
-
-NFT_LIST_VPN_ONLY
-
-NFT_LIST_INET_DROP
-
-NFT_DNS_LOCALNET
-
-NFT_SEARCH_DOMAIN_LOCALNET
-
-Примеры:
-
-bash
-# Одна опция
-wg-mgr.sh install -c my.conf -t "SSH_PORT=2222"
-
-# Несколько опций
-wg-mgr.sh install -c my.conf -t "SSH_PORT=2222; NFT_NAT_NET=\"192.168.100.0/24\"; PROVIDER_GW_MAC=aa:bb:cc:dd:ee:ff"
-
-# Несколько раз
-wg-mgr.sh install -c my.conf -t "SSH_PORT=2222" -t "NFT_NAT_NET=\"192.168.100.0/24\""
-
-# Для AmneziaWG с --dry-run
-wg-mgr.sh install -c awg.conf --dry-run -t "NFT_LIST_TRUST_WAN='office.vpn.ru, home.vpn.ru'; NFT_LIST_VPN=192.168.15.100"
-Приоритет значений:
-
-Если передано через -t → используется значение из командной строки
-
-Иначе → используется значение по умолчанию из get_value_hand_param()
-
-📂 Шаблоны конфигураций
-template-server.tmpl
-Шаблон для добавления клиента в конфигурацию сервера:
-
-text
-### Client $name $ip_desc ###
-[Peer]
-PublicKey = $WG_PUBLIC_KEY_CLIENT
-PresharedKey = $WG_PSK_KEY_CLIENT
-AllowedIPs = $WG_IP_CLIENT/32
-### END Client $name $ip_desc ###
-template-client.tmpl
-Шаблон для создания клиентской конфигурации:
-
-text
-[Interface]
-PrivateKey = $WG_PRIVATE_KEY_CLIENT
-Address = $WG_IP_CLIENT/$WG_MASK_NET_CLIENT
-DNS = $WG_DNS
-
-[Peer]
-PublicKey = $WG_PUBLIC_KEY_SERVER
-PresharedKey = $WG_PSK_KEY_CLIENT
-Endpoint = $WG_ENDPOINT
-AllowedIPs = $WG_ALLOWED_IPS
 🛡️ Файрвол: apply_rules.sh
-Скрипт apply_rules.sh автоматически создается из шаблона nft.rules.sh и подключается к WireGuard через PostUp/PostDown.
+Генерируется из шаблона nft.rules.sh во время установки.
 
-Шаблон nft.rules.sh:
+Подключается через директивы PostUp/PostDown в конфигурации VPN.
 
-Содержит все правила nftables
+Обеспечивает:
 
-Использует переменные из params.conf и hand_params.conf
+Сегментацию сети с использованием ct mark и списков доступа (NFT_LIST_VPN, NFT_LIST_VPN_ONLY, NFT_LIST_INET_DROP).
 
-Адаптируется под наличие данных (условное создание ARP правил)
+Защиту от сканирования портов (бан IP на 24 часа).
 
-Интеграция:
+Защиту SSH от брутфорса.
+
+DNAT (проброс портов) через NFT_MAP_DNAT.
+
+ACL для FORWARD через NFT_MAP_FORWARD_ACL.
+
+Интеграцию с systemd-resolved для DNS через resolvectl.
+
+🆕 Дополнительные опции: -t, --option
+Позволяет передавать параметры прямо из командной строки в hand_params.conf.
+
+Формат: NAME=VALUE (несколько опций разделяются ;).
 
 bash
-# В файле /etc/wireguard/wg13.conf
-PostUp = /etc/wireguard/apply_rules.sh add
-PostDown = /etc/wireguard/apply_rules.sh del
-🔧 Переменные окружения
-Переменная	Назначение
-NFT_COUNTER	Включает счетчики в nftables (значение counter)
-📊 Пример полного цикла для WireGuard
-1. Подготовка конфигурации
-bash
-# Создать конфиг с параметрами по умолчанию
-./wg-mgr.sh prepare
+wg-mgr.sh install -c awg.conf -t "SSH_PORT=2222; NFT_LIST_VPN=\"10.9.8.2, 10.9.8.3\""
 
-# Или с кастомными параметрами
-./wg-mgr.sh prepare -c vps.conf -i wg0 --ip4 10.66.66.1/24 --dns 8.8.8.8
-2. Установка WireGuard
-bash
-# Установить с подготовленным конфигом
-./wg-mgr.sh install -c vps.conf
-
-# Или с параметрами из командной строки
-./wg-mgr.sh install -i wg0 --ip4 10.66.66.1/24 --dns 8.8.8.8
-3. Добавление клиентов
-bash
-# Добавить клиента для ноутбука
-./wg-mgr.sh client -a add -n laptop -i wg0 --ip4 10.66.66.2/24
-
-# Добавить клиента для телефона
-./wg-mgr.sh client -a add -n phone -i wg0 --ip4 10.66.66.3/24
-
-# Добавить клиента с PersistentKeepalive
-./wg-mgr.sh client -a add -n mobile -i wg0 --ip4 10.66.66.4/24 -k 25
-4. Просмотр клиентов
-bash
-# Просмотр всех клиентов
-./wg-mgr.sh client -a list -i wg0
-
-# Количество активных клиентов
-./wg-mgr.sh client -a count -i wg0
-5. Удаление клиента
-bash
-./wg-mgr.sh client -a del -n laptop -i wg0
-📊 Пример использования для AmneziaWG
-bash
-# 1. Подготовка конфигурации
-./wg-mgr.sh prepare -c awg.conf -i awg0 --ip4 10.9.8.1/24 --dns 1.1.1.1
-
-# 2. Генерация всех файлов (без установки)
-./wg-mgr.sh install -c awg.conf --dry-run --debug
-
-# 3. Проверка созданных файлов
-ls -la /etc/wireguard/
-# awg0.conf  params.conf  hand_params.conf  apply_rules.sh  .clients/
-
-# 4. Ручная установка AmneziaWG с использованием:
-#    - awg0.conf → конфигурация сервера
-#    - params.conf → параметры для apply_rules.sh
-#    - hand_params.conf → параметры для apply_rules.sh
-#    - apply_rules.sh → скрипт nftables
-
-# 5. Добавление клиентов (тоже с --dry-run для получения конфигов)
-./wg-mgr.sh client -a add -n client1 -i awg0 --ip4 10.9.8.2/24 --dry-run
-
-# 6. Готовые конфиги клиента в /etc/wireguard/.clients/
-🐛 Отладка
-Включение отладочного режима
-bash
-# Добавьте --debug к любой команде
-./wg-mgr.sh install --debug
-./wg-mgr.sh client -a add -n test -i wg0 --ip4 10.66.66.10/24 --debug
-Пробный запуск (dry-run)
-bash
-# Показать, что будет выполнено, без реальных изменений
-./wg-mgr.sh install --dry-run
-./wg-mgr.sh client -a add -n test -i wg0 --ip4 10.66.66.10/24 --dry-run
-Просмотр логов
-bash
-# Логи WireGuard
-journalctl -u wg-quick@wg0 -f
-
-# Логи nftables (отбрасываемые пакеты)
-journalctl -kf | grep "DROPPED"
-
-# Просмотр правил nftables
-nft list ruleset
 ⚠️ Важные замечания
 Требуются права root — все операции выполняются от root
 
@@ -436,18 +204,17 @@ uninstall — пока не реализован
 AmneziaWG — скрипт используется только для подготовки конфигураций с --dry-run
 
 🎯 Заключение
-wg-mgr.sh — это мощный инструмент для управления WireGuard серверами, который:
+wg-mgr.sh — это профессиональный инструмент для управления VPN-инфраструктурой, который:
 
-✅ Автоматизирует установку WireGuard
+✅ Автоматизирует развертывание WireGuard и AmneziaWG.
 
-✅ Упрощает управление клиентами
+✅ Предоставляет гибкую систему управления клиентами.
 
-✅ Интегрируется с nftables через шаблоны
+✅ Включает расширенную систему безопасности на основе nftables.
 
-✅ Поддерживает гибкую настройку через конфигурационные файлы
+✅ Позволяет гибко настраивать сетевые политики (сегментация, ACL, DNAT).
 
-✅ Позволяет передавать параметры через -t, --option
+✅ Используется как для установки WireGuard, так и для подготовки конфигураций AmneziaWG.
 
-✅ Работает на Debian, Ubuntu и Alpine Linux
+This response is AI-generated, for reference only.
 
-✅ Используется для подготовки конфигураций AmneziaWG (с --dry-run)
