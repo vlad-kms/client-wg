@@ -1586,7 +1586,8 @@ wg_install() {
         printf "%s\n" "  ### В файле можно использовать все переменные из файлов params.conf и hand_params.conf."
         printf "%s\n" "  ### Также можно использовать переменные из сформированного файла apply_rules.sh."
         printf "%s\n" "  ### Пример строки из файла:"
-        printf "%s\n" '  ### nft insert rule $family $std_table_filter $name_chain_awg_input index 3 iifname \"$SERVER_PUB_NIC\" ip saddr 0.0.0.0 udp sport 68 ct state new $awg_counter drop comment \"Drop HCP\"'
+        # shellcheck disable=SC2016
+        printf "%s\n" '  ### nft insert rule $family $std_table_filter $name_chain_awg_input index 3 iifname "$SERVER_PUB_NIC" ip saddr 0.0.0.0 udp sport 68 ct state new $awg_counter drop comment "Drop DHCP"'
         printf "%s\n" "  # NFT_FILENAME_CUSTOM_RULES=custom_rules.sh"
         printf "%s\n" "$(get_value_hand_param "NFT_FILENAME_CUSTOM_RULES" "custom_rules.sh")"
 
