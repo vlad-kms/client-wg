@@ -1196,12 +1196,14 @@ inst_iptables(){
             # удалить строки до первого ШЕБАНГА и удалить все остальные ШЕБАНГИ в файле
             sed -i -En '/^#!/{:a; p; n; ba}' "${script_rules}" && sed -i '2,${/#!/d}' "${script_rules}"
             # добавить строку подключения файла с параметрами установки и доп.параметрами
-            sed -i -E "1a# dir_conf используется только для вывода в тексте ошибки" "${script_rules}"
-            sed -i -E "2adir_conf=\"${_fp} ${_fhp}\"" "${script_rules}"
-            sed -i -E "3a_fp=\"${_fp}\"" "${script_rules}"
-            sed -i -E "4a_fhp=\"${_fhp}\"" "${script_rules}"
-            sed -i -E "5aif [ -f \"\${_fp}\" \]\;  then \. \"\${_fp}\"\;  fi" "${script_rules}"
-            sed -i -E "6aif [ -f \"\${_fhp}\" \]\; then \. \"\${_fhp}\"\; fi" "${script_rules}"
+            sed -i -E "1a# dir_conf путь куда собираются файлы конфигурации и скрипт для firewall" "${script_rules}"
+            sed -i -E "2adir_conf=\"${path_wg}\"" "${script_rules}"
+            sed -i -E "3a# files_conf используется только для вывода в тексте ошибки" "${script_rules}"
+            sed -i -E "4afiles_conf=\"${_fp} ${_fhp}\"" "${script_rules}"
+            sed -i -E "5a_fp=\"${_fp}\"" "${script_rules}"
+            sed -i -E "6a_fhp=\"${_fhp}\"" "${script_rules}"
+            sed -i -E "7aif [ -f \"\${_fp}\" \]\;  then \. \"\${_fp}\"\;  fi" "${script_rules}"
+            sed -i -E "8aif [ -f \"\${_fhp}\" \]\; then \. \"\${_fhp}\"\; fi" "${script_rules}"
 
             printf "PostUp=${script_rules} add\n" >> "${FILE_CONF_WG}"
             printf "PostDown=${script_rules} delete\n" >> "${FILE_CONF_WG}"
