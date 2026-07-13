@@ -257,7 +257,7 @@ add set $family $std_table_filter $name_set_awg_ssh_ban { type ipv4_addr; flags 
   # --- $name_set_awg_trust_vpn
 #add set $family $std_table_filter $name_set_awg_trust_vpn { type ipv4_addr; flags interval; }
   # --- $name_set_awg_nat_net
-add set $family $std_table_filter $name_set_awg_nat_net { type ipv4_addr; flags interval; }
+#add set $family $std_table_filter $name_set_awg_nat_net { type ipv4_addr; flags interval; }
   # --- $name_set_awg_services_ext
 add set $family $std_table_filter $name_set_awg_services_ext { type inet_proto . inet_service; flags interval; }
   # --- $name_set_awg_services_vpn
@@ -276,7 +276,7 @@ add map ip $std_table_nat $name_map_dnat { type inet_proto . inet_service : ipv4
   # --- $name_set_awg_trust_vpn
 #$(get_rule_element_set "$family $std_table_filter $name_set_awg_trust_vpn" "$trust_vpn")
   # --- $name_set_awg_nat_net
-$(get_rule_element_set "$family $std_table_filter $name_set_awg_nat_net" "$nat_net")
+#$(get_rule_element_set "$family $std_table_filter $name_set_awg_nat_net" "$nat_net")
   # --- $name_set_awg_services_ext
 $(get_rule_element_set "$family $std_table_filter $name_set_awg_services_ext" "$NFT_ALLOWED_SERVICES")
   # --- $name_set_awg_services_vpn
