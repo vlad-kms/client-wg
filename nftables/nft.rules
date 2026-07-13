@@ -267,8 +267,8 @@ add set $family $std_table_filter $name_set_awg_services_ext_not { type inet_pro
   # --- $name_set_awg_services_vpn_not
 add set $family $std_table_filter $name_set_awg_services_vpn_not { type inet_proto . inet_service; flags interval; }
   # --- MAPS  +++++++++++++++++++
-add map $family $std_table_filter $name_map_forward_acl { type ipv4_addr . inet_proto . inet_service : verdict; elements={${NFT_MAP_FORWARD_ACL}} }
-add map ip $std_table_nat $name_map_dnat { type inet_proto . inet_service : ipv4_addr . inet_service; elements={${NFT_MAP_DNAT}} }
+add map $family $std_table_filter $name_map_forward_acl { type ipv4_addr . inet_proto . inet_service : verdict; }
+add map ip $std_table_nat $name_map_dnat { type inet_proto . inet_service : ipv4_addr . inet_service; }
 
   # --- установка элементов sets
  # --- $name_set_awg_trust_wan
@@ -288,6 +288,11 @@ $(get_rule_element_set "$family $std_table_filter $name_set_awg_services_ext_not
   # --- $name_set_awg_services_vpn_not
 $(get_rule_element_set "$family $std_table_filter $name_set_awg_services_vpn_not" "$NFT_ALLOWED_SERVICES_VPN")
 $(get_rule_element_set "$family $std_table_filter $name_set_awg_services_vpn_not" "$service_ssh")
+  # --- $name_map_forward_acl
+$(get_rule_element_set "$family $std_table_filter $name_map_forward_acl" "${NFT_MAP_FORWARD_ACL}")
+  # --- $name_map_dnat
+$(get_rule_element_set "$family_ip $std_table_nat $name_map_dnat" "${NFT_MAP_DNAT}")
+
 
   # CHAINS  +++++++++++++++++++
   # --- create chain $name_chain_logdrop
