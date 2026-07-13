@@ -267,8 +267,8 @@ add set $family $std_table_filter $name_set_awg_services_ext_not { type inet_pro
   # --- $name_set_awg_services_vpn_not
 add set $family $std_table_filter $name_set_awg_services_vpn_not { type inet_proto . inet_service; flags interval; }
   # --- MAPS  +++++++++++++++++++
-add map $family $std_table_filter $name_map_forward_acl { type ipv4_addr . inet_proto . inet_service : verdict; }
-add map ip $std_table_nat $name_map_dnat { type inet_proto . inet_service : ipv4_addr . inet_service; }
+add map $family $std_table_filter $name_map_forward_acl { type ipv4_addr . inet_proto . inet_service : verdict; flags interval; }
+add map ip $std_table_nat $name_map_dnat { type inet_proto . inet_service : ipv4_addr . inet_service; flags interval; }
 
   # --- установка элементов sets
  # --- $name_set_awg_trust_wan
