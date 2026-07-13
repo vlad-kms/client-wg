@@ -50,13 +50,15 @@ nat_inet_drop="${NFT_LIST_INET_DROP}"
 awg_vpn="${NFT_LIST_VPN}"
 awg_vpn_only="${NFT_LIST_VPN_ONLY}"
 
-mark_only_inet=120
-mark_only_vpn=110
-mark_all=100
+# mark_only_inet=120
+# mark_only_vpn=110
+# mark_all=100
 mark_inet=0x100
 mask_not_inet=$(( (~${mark_inet}) & 0xFFFFFFFF ))
 mark_vpn=0x200
 mask_not_vpn=$(( (~${mark_vpn}) & 0xFFFFFFFF ))
+mark_trust_wan=1
+mark_trust_vpn=2
 
 #printf "0x%08X\n" $mask_not_inet
 #printf "0x%016X\n" $mask_not_vpn
@@ -205,12 +207,14 @@ add set $family $awg_table_mangle $name_set_awg_nat_net   { type ipv4_addr; flag
 add set $family $awg_table_mangle $name_set_nat_inet_drop { type ipv4_addr; flags interval; }
 add set $family $awg_table_mangle $name_set_awg_vpn_only  { type ipv4_addr; flags interval; }
 add set $family $awg_table_mangle $name_set_awg_vpn       { type ipv4_addr; flags interval; }
+add set $family $awg_table_mangle $name_set_awg_trust_wan { type ipv4_addr; flags interval; }
 add set $family $awg_table_mangle $name_set_awg_trust_vpn { type ipv4_addr; flags interval; }
   # --- elements sets
 $(get_rule_element_set "$family $awg_table_mangle $name_set_awg_nat_net" "$nat_net")
 $(get_rule_element_set "$family $awg_table_mangle $name_set_nat_inet_drop" "$nat_inet_drop")
 $(get_rule_element_set "$family $awg_table_mangle $name_set_awg_vpn" "$awg_vpn")
 $(get_rule_element_set "$family $awg_table_mangle $name_set_awg_vpn_only" "$awg_vpn_only")
+$(get_rule_element_set "$family $awg_table_mangle $name_set_awg_trust_wan" "$trust_wan")
 $(get_rule_element_set "$family $awg_table_mangle $name_set_awg_trust_vpn" "$trust_vpn")
   # --- rules
 add chain $family $awg_table_mangle prerouting {type filter hook prerouting priority mangle - $awg_priority; policy accept;}
@@ -221,43 +225,71 @@ add rule $family $awg_table_mangle forward ${awg_counter} tcp flags syn tcp opti
 add rule $family $awg_table_mangle prerouting iifname "$SERVER_WG_NIC" ip saddr { 192.168.15.99, 192.168.15.129, 192.168.16.55, 192.168.15.202 } meta nftrace set 1
   # --- set marks
   # БАЗОВОЕ ПРАВИЛО: Всем клиентам сети по умолчанию разрешаем только Интернет (0x100)
-add rule $family $awg_table_mangle prerouting iifname "$SERVER_WG_NIC" ip saddr @${name_set_awg_nat_net} ct state new ${awg_counter} ct mark set ${mark_inet} comment "Выход в INET"
+add rule $family $awg_table_mangle prerouting iifname "$SERVER_WG_NIC" ip saddr @${name_set_awg_nat_net} \
+    ct state new ${awg_counter} ct mark set ${mark_inet} comment "Выход в INET"
   # МОДИФИКАТОР LAN: Если клиент в списке awg_vpn или awg_vpn_only — добавляем ему флаг LAN (0x200)
   # Используем побитовое ИЛИ (|), чтобы сохранить уже имеющийся 0x100 (для awg_vpn)
-add rule $family $awg_table_mangle prerouting iifname "$SERVER_WG_NIC" ip saddr @${name_set_awg_vpn} ct state new ${awg_counter} ct mark set ct mark | ${mark_vpn} comment "Флаг выхода в LAN"
-add rule $family $awg_table_mangle prerouting iifname "$SERVER_WG_NIC" ip saddr @${name_set_awg_vpn_only} ct state new ${awg_counter} ct mark set ct mark | ${mark_vpn} comment "Флаг выхода в LAN"
+add rule $family $awg_table_mangle prerouting iifname "$SERVER_WG_NIC" ip saddr @${name_set_awg_vpn} \
+    ct state new ${awg_counter} ct mark set ct mark | ${mark_vpn} comment "Флаг выхода в LAN"
+add rule $family $awg_table_mangle prerouting iifname "$SERVER_WG_NIC" ip saddr @${name_set_awg_vpn_only} \
+    ct state new ${awg_counter} ct mark set ct mark | ${mark_vpn} comment "Флаг выхода в LAN"
   # МОДИФИКАТОР DROP: Если клиент в списке drop или vpn_only — СТИРАЕМ флаг Интернета (0x100)
   # Маска 0x0000feff выключит бит 0x100, но сохранит бит 0x200, если он был установлен на шаге 3
-add rule $family $awg_table_mangle prerouting iifname "$SERVER_WG_NIC" ip saddr @${name_set_nat_inet_drop} ct state new ${awg_counter} ct mark set ct mark & ${mask_not_inet} comment "НЕТ выхода в INET"
-add rule $family $awg_table_mangle prerouting iifname "$SERVER_WG_NIC" ip saddr @${name_set_awg_vpn_only}  ct state new ${awg_counter} ct mark set ct mark & ${mask_not_inet} comment "НЕТ выхода в INET"
+add rule $family $awg_table_mangle prerouting iifname "$SERVER_WG_NIC" ip saddr @${name_set_nat_inet_drop} \
+    ct state new ${awg_counter} ct mark set ct mark & ${mask_not_inet} comment "НЕТ выхода в INET"
+add rule $family $awg_table_mangle prerouting iifname "$SERVER_WG_NIC" ip saddr @${name_set_awg_vpn_only} \
+    ct state new ${awg_counter} ct mark set ct mark & ${mask_not_inet} comment "НЕТ выхода в INET"
+  # маркировать трафик для доверенных на WAN
+add rule $family $awg_table_mangle prerouting iifname "$SERVER_PUB_NIC" ip saddr @${name_set_awg_trust_wan} \
+    ct state new ${awg_counter} ct mark set ct mark | ${mark_trust_wan} comment "Доверенные адреса на WAN"
+add rule $family $awg_table_mangle prerouting iifname "$SERVER_WG_NIC" ip saddr @${name_set_awg_trust_vpn} \
+    ct state new ${awg_counter} ct mark set ct mark | ${mark_trust_vpn} comment "Доверенные адреса на VPN"
 add rule $family $awg_table_mangle prerouting ${awg_counter} meta mark set ct mark
 
-  # TABLE inet filter %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  # --- SETS
+  # TABLE $family $std_table_filter %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  # --- SETS +++++++++++++++++++
+  # --- $name_set_awg_portscan
 add set $family $std_table_filter $name_set_awg_portscan { type ipv4_addr; flags dynamic, timeout; size 65535; timeout 24h; }
+  # --- $name_set_awg_ssh_ban
 add set $family $std_table_filter $name_set_awg_ssh_ban { type ipv4_addr; flags dynamic, timeout; size 65535; timeout 2h; }
-  # ---
-add set $family $std_table_filter $name_set_awg_trust_wan { type ipv4_addr; flags interval; }
-add set $family $std_table_filter $name_set_awg_trust_vpn { type ipv4_addr; flags interval; }
-  # ---
+  # --- $name_set_awg_trust_wan
+#add set $family $std_table_filter $name_set_awg_trust_wan { type ipv4_addr; flags interval; }
+  # --- $name_set_awg_trust_vpn
+#add set $family $std_table_filter $name_set_awg_trust_vpn { type ipv4_addr; flags interval; }
+  # --- $name_set_awg_nat_net
 add set $family $std_table_filter $name_set_awg_nat_net { type ipv4_addr; flags interval; }
-  # --- SET awg_services_ext
-add set $family $std_table_filter $name_set_awg_services_ext { type inet_proto . inet_service; }
-  # --- SET awg_services_vpn
-add set $family $std_table_filter $name_set_awg_services_vpn { type inet_proto . inet_service; }
-  # --- SET awg_services_ext_not
-add set $family $std_table_filter $name_set_awg_services_ext_not { type inet_proto . inet_service; }
-  # --- SET awg_services_vpn_not
-add set $family $std_table_filter $name_set_awg_services_vpn_not { type inet_proto . inet_service; }
-  # ---
-# add set $family $std_table_filter $name_set_nat_inet_drop { type ipv4_addr; flags interval; }
-# add set $family $std_table_filter $name_set_awg_vpn_only  { type ipv4_addr; flags interval; }
-
-  # --- MAPS
+  # --- $name_set_awg_services_ext
+add set $family $std_table_filter $name_set_awg_services_ext { type inet_proto . inet_service; flags interval; }
+  # --- $name_set_awg_services_vpn
+add set $family $std_table_filter $name_set_awg_services_vpn { type inet_proto . inet_service; flags interval; }
+  # --- $name_set_awg_services_ext_not
+add set $family $std_table_filter $name_set_awg_services_ext_not { type inet_proto . inet_service; flags interval; }
+  # --- $name_set_awg_services_vpn_not
+add set $family $std_table_filter $name_set_awg_services_vpn_not { type inet_proto . inet_service; flags interval; }
+  # --- MAPS  +++++++++++++++++++
 add map $family $std_table_filter $name_map_forward_acl { type ipv4_addr . inet_proto . inet_service : verdict; elements={${NFT_MAP_FORWARD_ACL}} }
 add map ip $std_table_nat $name_map_dnat { type inet_proto . inet_service : ipv4_addr . inet_service; elements={${NFT_MAP_DNAT}} }
 
-  # CHAINS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  # --- установка элементов sets
+ # --- $name_set_awg_trust_wan
+#$(get_rule_element_set "$family $std_table_filter $name_set_awg_trust_wan" "$trust_wan")
+  # --- $name_set_awg_trust_vpn
+#$(get_rule_element_set "$family $std_table_filter $name_set_awg_trust_vpn" "$trust_vpn")
+  # --- $name_set_awg_nat_net
+$(get_rule_element_set "$family $std_table_filter $name_set_awg_nat_net" "$nat_net")
+  # --- $name_set_awg_services_ext
+$(get_rule_element_set "$family $std_table_filter $name_set_awg_services_ext" "$NFT_ALLOWED_SERVICES")
+  # --- $name_set_awg_services_vpn
+$(get_rule_element_set "$family $std_table_filter $name_set_awg_services_vpn" "$NFT_ALLOWED_SERVICES_VPN")
+  # --- $name_set_awg_services_ext_not
+$(get_rule_element_set "$family $std_table_filter $name_set_awg_services_ext_not" "$NFT_ALLOWED_SERVICES")
+$(get_rule_element_set "$family $std_table_filter $name_set_awg_services_ext_not" "$service_wg")
+$(get_rule_element_set "$family $std_table_filter $name_set_awg_services_ext_not" "$service_ssh")
+  # --- $name_set_awg_services_vpn_not
+$(get_rule_element_set "$family $std_table_filter $name_set_awg_services_vpn_not" "$NFT_ALLOWED_SERVICES_VPN")
+$(get_rule_element_set "$family $std_table_filter $name_set_awg_services_vpn_not" "$service_ssh")
+
+  # CHAINS  +++++++++++++++++++
   # --- create chain $name_chain_logdrop
 add chain $family $std_table_filter $name_chain_logdrop
 # flush chain $family $std_table_filter $name_chain_logdrop
@@ -304,7 +336,7 @@ add rule $family $std_table_filter $name_chain_scan_port ${awg_counter} return
   # --- INPUT $name_chain_awg_input
 add chain $family $std_table_filter $name_chain_awg_input
   # отладка: nft monitoring trace 
-# add rule  $family $std_table_filter $name_chain_awg_input tcp dport 22 meta nftrace set 1
+#add rule  $family $std_table_filter $name_chain_awg_input tcp dport 22 meta nftrace set 1
 add rule $family $std_table_filter $name_chain_awg_input $predefined_rule_0 comment "Разрешить все на интерфейсе lo"
 add rule $family $std_table_filter $name_chain_awg_input ip saddr @${name_set_awg_portscan} ${awg_counter} reject with icmp port-unreachable
 add rule $family $std_table_filter $name_chain_awg_input ip saddr @${name_set_awg_ssh_ban} ${awg_counter} reject with icmp port-unreachable
@@ -318,13 +350,30 @@ add rule $family $std_table_filter $name_chain_awg_input meta l4proto ipv6-icmp 
     limit rate 5/second accept
 add rule $family $std_table_filter $name_chain_awg_input $predefined_rule_2 comment "Запретить invalid"
 add rule $family $std_table_filter $name_chain_awg_input iifname "$SERVER_PUB_NIC" udp dport $SERVER_PORT ${awg_counter} accept comment "Разрешить AmneziaWG"
-add rule $family $std_table_filter $name_chain_awg_input iifname "$SERVER_PUB_NIC" ip saddr @${name_set_awg_trust_wan} tcp dport ${SSH_PORT} ct state new ${awg_counter} accept comment "Разрешить SSH с доверенных на $SERVER_PUB_NIC"
-add rule $family $std_table_filter $name_chain_awg_input iifname "$SERVER_WG_NIC" ip saddr @${name_set_awg_trust_vpn} ct state new ${awg_counter} accept comment "Разрешить все с доверенных на $SERVER_WG_NIC"
+  # доверенные ip адреса
+#add rule $family $std_table_filter $name_chain_awg_input iifname "$SERVER_PUB_NIC" ip saddr @${name_set_awg_trust_wan} \
+    tcp dport ${SSH_PORT} ct state new ${awg_counter} accept comment "Разрешить SSH с доверенных на $SERVER_PUB_NIC"
+#add rule $family $std_table_filter $name_chain_awg_input iifname "$SERVER_WG_NIC" ip saddr @${name_set_awg_trust_vpn} \
+    ct state new ${awg_counter} accept comment "Разрешить все с доверенных на $SERVER_WG_NIC"
+# TODO убрать на проме
+#add rule $family $std_table_filter $name_chain_awg_input iifname "$SERVER_PUB_NIC" meta l4proto . th dport @$name_set_awg_services_ext_not \
+    ct state new ct mark & ${mark_trust_wan} == ${mark_trust_wan} \
+    ${awg_counter} accept comment "Разрешить все разрешенные с доверенных на $SERVER_PUB_NIC"
+add rule $family $std_table_filter $name_chain_awg_input iifname "$SERVER_PUB_NIC" \
+    tcp dport ${SSH_PORT} \
+    ct state new ct mark & ${mark_trust_wan} == ${mark_trust_wan} ${awg_counter} accept comment "Разрешить SSH с доверенных на $SERVER_PUB_NIC"
+add rule $family $std_table_filter $name_chain_awg_input iifname "$SERVER_WG_NIC" \
+    meta l4proto . th dport @$name_set_awg_services_vpn_not \
+    ct state new ct mark & ${mark_trust_vpn} == ${mark_trust_vpn} ${awg_counter} accept comment "Разрешить все с доверенных на $SERVER_WG_NIC"
+  # DNS
 add rule $family $std_table_filter $name_chain_awg_input iifname "$SERVER_WG_NIC" tcp dport 53 ct state new ${awg_counter} accept comment "Разрешить DNS tcp"
 add rule $family $std_table_filter $name_chain_awg_input iifname "$SERVER_WG_NIC" udp dport 53 ct state new ${awg_counter} accept comment "Разрешить DNS tcp"
-add rule $family $std_table_filter $name_chain_awg_input iifname "$SERVER_WG_NIC" ip saddr @${name_set_awg_trust_vpn} ct state new ${awg_counter} accept comment "Разрешить все с доверенных на $SERVER_WG_NIC"
-add rule $family $std_table_filter $name_chain_awg_input iifname "$SERVER_PUB_NIC" ${awg_counter} jump scan_port comment "Антисканер портов, брутфорса SSH и т.д."
-add rule $family $std_table_filter $name_chain_awg_input iifname "$SERVER_WG_NIC"  ${awg_counter} jump scan_port comment "Антисканер портов, брутфорса SSH и т.д."
+add rule $family $std_table_filter $name_chain_awg_input iifname "$SERVER_PUB_NIC" \
+    ct mark & ${mark_trust_wan} != ${mark_trust_wan} \
+     ${awg_counter} jump scan_port comment "Антисканер портов, брутфорса SSH и т.д."
+add rule $family $std_table_filter $name_chain_awg_input iifname "$SERVER_WG_NIC"  \
+    ct mark & ${mark_trust_vpn} != ${mark_trust_vpn} \
+    ${awg_counter} jump scan_port comment "Антисканер портов, брутфорса SSH и т.д."
 add rule $family $std_table_filter $name_chain_awg_input iifname "$SERVER_PUB_NIC" \
     meta l4proto . th dport @$name_set_awg_services_ext ct state new ${awg_counter} accept \
     comment "Разрешить NFT_ALLOWED_SERVICES on $SERVER_PUB_NIC"
@@ -341,7 +390,12 @@ add rule $family $std_table_filter $name_chain_awg_forward $predefined_rule_1 co
 add rule $family $std_table_filter $name_chain_awg_forward $predefined_rule_2 comment "Запретить invalid"
   # отладка: nft monitoring trace 
 add rule $family $std_table_filter $name_chain_awg_forward iifname "$SERVER_WG_NIC" oifname  "$SERVER_PUB_NIC" ip saddr { 192.168.15.99, 192.168.15.129,192.168.16.55, 192.168.15.202 } meta nftrace set 1
-add rule $family $std_table_filter $name_chain_awg_forward iifname "$SERVER_WG_NIC" ip saddr @${name_set_awg_trust_vpn} ${awg_counter} accept comment "Разрешить все с доверенных на $SERVER_WG_NIC"
+  # Доверенные адреса
+#add rule $family $std_table_filter $name_chain_awg_forward iifname "$SERVER_WG_NIC" ip saddr @${name_set_awg_trust_vpn} ${awg_counter} accept comment "Разрешить все с доверенных на $SERVER_WG_NIC"
+add rule $family $std_table_filter $name_chain_awg_forward iifname "$SERVER_WG_NIC" \
+    ct state new ct mark & ${mark_trust_vpn} == ${mark_trust_vpn} \
+    ${awg_counter} accept \
+    comment "Разрешить все с доверенных на $SERVER_WG_NIC"
   # filter для DNAT $name_map_forward_acl
 add rule $family $std_table_filter $name_chain_awg_forward iifname "$SERVER_PUB_NIC" ip daddr . ip protocol . th dport vmap @$name_map_forward_acl
 add rule $family $std_table_filter $name_chain_awg_forward iifname "$SERVER_WG_NIC" oifname  "$SERVER_PUB_NIC" ct mark & ${mark_inet} == ${mark_inet} ${awg_counter} accept
@@ -355,7 +409,7 @@ chain $family $std_table_filter input { policy drop; }
 insert rule $family $std_table_filter forward ${awg_counter} jump $name_chain_awg_forward
 chain $family $std_table_filter forward { policy drop; }
 
-  # --- $std_table_nat
+  # --- TABLE $family_ip $std_table_nat %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 $(if ! nft list chain ip $std_table_nat postrouting | grep -E "oifname \"$SERVER_PUB_NIC\"\s*(${awg_counter}.*)?\s*masquerade" 2>&1 > /dev/null; then
   echo "# Включаем masquerade";
   echo "add rule ip $std_table_nat postrouting oifname \"$SERVER_PUB_NIC\" ${awg_counter} masquerade";
@@ -366,19 +420,6 @@ fi)
   # prerouting: правило DNAT
 add rule ip $std_table_nat prerouting iifname "$SERVER_PUB_NIC" dnat to ip protocol . th dport map @$name_map_dnat
 
-  # --- установка элементов sets
-$(get_rule_element_set "$family $std_table_filter $name_set_awg_trust_wan" "$trust_wan")
-$(get_rule_element_set "$family $std_table_filter $name_set_awg_trust_vpn" "$trust_vpn")
-  # ---
-$(get_rule_element_set "$family $std_table_filter $name_set_awg_nat_net" "$nat_net")
-  # ---
-$(get_rule_element_set "$family $std_table_filter $name_set_awg_services_ext" "$NFT_ALLOWED_SERVICES")
-$(get_rule_element_set "$family $std_table_filter $name_set_awg_services_vpn" "$NFT_ALLOWED_SERVICES_VPN")
-$(get_rule_element_set "$family $std_table_filter $name_set_awg_services_ext_not" "$NFT_ALLOWED_SERVICES")
-$(get_rule_element_set "$family $std_table_filter $name_set_awg_services_ext_not" "$service_wg")
-$(get_rule_element_set "$family $std_table_filter $name_set_awg_services_ext_not" "$service_ssh")
-$(get_rule_element_set "$family $std_table_filter $name_set_awg_services_vpn_not" "$NFT_ALLOWED_SERVICES_VPN")
-$(get_rule_element_set "$family $std_table_filter $name_set_awg_services_vpn_not" "$service_ssh")
 # ==================================================================================================================================================================
 EOF
 
