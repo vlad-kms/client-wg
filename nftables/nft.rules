@@ -271,7 +271,7 @@ add set $family $std_table_filter $name_set_awg_services_ext_not { type inet_pro
   # --- $name_set_awg_services_vpn_not
 add set $family $std_table_filter $name_set_awg_services_vpn_not { type inet_proto . inet_service; flags interval; }
   # --- $name_set_ssh_counter
-add set $family $std_table_filter $name_set_ssh_counter { type ipv4_addr; flags dynamic, timeout; timeout 1m; counter; }
+#add set $family $std_table_filter $name_set_ssh_counter { type ipv4_addr; flags dynamic, timeout; timeout 1m; counter; }
   # --- $name_set_ssh_quota
 #add set $family $std_table_filter $name_set_ssh_quota { type ipv4_addr; flags dynamic, timeout; timeout 1m; quota 4; }
   # --- $name_set_ssh_limit
@@ -308,7 +308,6 @@ $(get_rule_element_set "$family_ip $std_table_nat $name_map_dnat" "${NFT_MAP_DNA
   # CHAINS  +++++++++++++++++++
   # --- create chain $name_chain_logdrop
 add chain $family $std_table_filter $name_chain_logdrop
-# flush chain $family $std_table_filter $name_chain_logdrop
 add rule  $family $std_table_filter $name_chain_logdrop ${awg_counter} log prefix "DROPPED: "
 add rule  $family $std_table_filter $name_chain_logdrop ${awg_counter} drop
   # --- create chain logrej
@@ -355,7 +354,7 @@ add rule $family $std_table_filter $name_chain_scan_port ${awg_counter} return
 
   # --- INPUT $name_chain_awg_input
 add chain $family $std_table_filter $name_chain_awg_input
-  # отладка: nft monitoring trace 
+  # ОТЛАДКА: nft monitoring trace 
 #add rule  $family $std_table_filter $name_chain_awg_input tcp dport 22 meta nftrace set 1
 add rule $family $std_table_filter $name_chain_awg_input $predefined_rule_0 comment "Разрешить все на интерфейсе lo"
 add rule $family $std_table_filter $name_chain_awg_input ip saddr @${name_set_awg_portscan} ${awg_counter} reject with icmp port-unreachable
@@ -370,21 +369,19 @@ add rule $family $std_table_filter $name_chain_awg_input meta l4proto ipv6-icmp 
     limit rate 5/second accept
 add rule $family $std_table_filter $name_chain_awg_input $predefined_rule_2 comment "Запретить invalid"
 add rule $family $std_table_filter $name_chain_awg_input iifname "$SERVER_PUB_NIC" udp dport $SERVER_PORT ${awg_counter} accept comment "Разрешить AmneziaWG"
-  # доверенные ip адреса
-#add rule $family $std_table_filter $name_chain_awg_input iifname "$SERVER_PUB_NIC" ip saddr @${name_set_awg_trust_wan} \
-    tcp dport ${SSH_PORT} ct state new ${awg_counter} accept comment "Разрешить SSH с доверенных на $SERVER_PUB_NIC"
-#add rule $family $std_table_filter $name_chain_awg_input iifname "$SERVER_WG_NIC" ip saddr @${name_set_awg_trust_vpn} \
-    ct state new ${awg_counter} accept comment "Разрешить все с доверенных на $SERVER_WG_NIC"
-# TODO убрать на проме
-#add rule $family $std_table_filter $name_chain_awg_input iifname "$SERVER_PUB_NIC" meta l4proto . th dport @$name_set_awg_services_ext_not \
-    ct state new ct mark & ${mark_trust_wan} == ${mark_trust_wan} \
-    ${awg_counter} accept comment "Разрешить все разрешенные с доверенных на $SERVER_PUB_NIC"
+  # ДОВЕРЕННЫЕ ip адреса
 add rule $family $std_table_filter $name_chain_awg_input iifname "$SERVER_PUB_NIC" \
     tcp dport ${SSH_PORT} \
-    ct state new ct mark & ${mark_trust_wan} == ${mark_trust_wan} ${awg_counter} accept comment "Разрешить SSH с доверенных на $SERVER_PUB_NIC"
+    ct state new ct mark & ${mark_trust_wan} == ${mark_trust_wan} \
+    ${awg_counter} \
+    accept \
+    comment "Разрешить SSH с доверенных на $SERVER_PUB_NIC"
 add rule $family $std_table_filter $name_chain_awg_input iifname "$SERVER_WG_NIC" \
     meta l4proto . th dport @$name_set_awg_services_vpn_not \
-    ct state new ct mark & ${mark_trust_vpn} == ${mark_trust_vpn} ${awg_counter} accept comment "Разрешить все с доверенных на $SERVER_WG_NIC"
+    ct state new ct mark & ${mark_trust_vpn} == ${mark_trust_vpn} \
+    ${awg_counter} \
+    accept \
+    comment "Разрешить все с доверенных на $SERVER_WG_NIC"
   # DNS
 add rule $family $std_table_filter $name_chain_awg_input \
     iifname "$SERVER_WG_NIC" \
@@ -419,22 +416,45 @@ add rule $family $std_table_filter $name_chain_awg_input ${awg_counter} return
 
   # --- FORWARD $name_chain_awg_forward
 add chain $family $std_table_filter $name_chain_awg_forward
-add rule $family $std_table_filter $name_chain_awg_forward ip saddr @${name_set_awg_portscan} ${awg_counter} reject with icmp port-unreachable
-add rule $family $std_table_filter $name_chain_awg_forward ip saddr @${name_set_awg_ssh_ban} ${awg_counter} reject with icmp port-unreachable
-add rule $family $std_table_filter $name_chain_awg_forward $predefined_rule_1 comment "Разрешить stateless"
-add rule $family $std_table_filter $name_chain_awg_forward $predefined_rule_2 comment "Запретить invalid"
-  # отладка: nft monitoring trace 
-add rule $family $std_table_filter $name_chain_awg_forward iifname "$SERVER_WG_NIC" oifname  "$SERVER_PUB_NIC" ip saddr { 192.168.15.99, 192.168.15.129,192.168.16.55, 192.168.15.202 } meta nftrace set 1
-  # Доверенные адреса
-#add rule $family $std_table_filter $name_chain_awg_forward iifname "$SERVER_WG_NIC" ip saddr @${name_set_awg_trust_vpn} ${awg_counter} accept comment "Разрешить все с доверенных на $SERVER_WG_NIC"
-add rule $family $std_table_filter $name_chain_awg_forward iifname "$SERVER_WG_NIC" \
+add rule $family $std_table_filter $name_chain_awg_forward \
+    ip saddr @${name_set_awg_portscan} ${awg_counter} reject with icmp port-unreachable \
+    comment "DROPPED set ${name_set_awg_portscan}"
+add rule $family $std_table_filter $name_chain_awg_forward \
+    ip saddr @${name_set_awg_ssh_ban} ${awg_counter} reject with icmp port-unreachable \
+    comment "DROPPED set ${name_set_awg_ssh_ban}"
+add rule $family $std_table_filter $name_chain_awg_forward $predefined_rule_1 \
+    comment "Разрешить stateless"
+add rule $family $std_table_filter $name_chain_awg_forward $predefined_rule_2 \
+    comment "Запретить invalid"
+  # ОТЛАДКА: nft monitoring trace 
+#add rule $family $std_table_filter $name_chain_awg_forward iifname "$SERVER_WG_NIC" oifname  "$SERVER_PUB_NIC" ip saddr { 192.168.15.99, 192.168.15.129,192.168.16.55, 192.168.15.202 } meta nftrace set 1
+  # ДОВЕРЕННЫЕ адреса
+add rule $family $std_table_filter $name_chain_awg_forward \
+    iifname "$SERVER_WG_NIC" \
     ct state new ct mark & ${mark_trust_vpn} == ${mark_trust_vpn} \
-    ${awg_counter} accept \
-    comment "Разрешить все с доверенных на $SERVER_WG_NIC"
+    ${awg_counter} \
+    accept \
+    comment "Разрешить все с доверенных на $SERVER_WG_NIC (метка ${mark_trust_vpn})"
   # filter для DNAT $name_map_forward_acl
-add rule $family $std_table_filter $name_chain_awg_forward iifname "$SERVER_PUB_NIC" ip daddr . ip protocol . th dport vmap @$name_map_forward_acl
-add rule $family $std_table_filter $name_chain_awg_forward iifname "$SERVER_WG_NIC" oifname  "$SERVER_PUB_NIC" ct mark & ${mark_inet} == ${mark_inet} ${awg_counter} accept
-add rule $family $std_table_filter $name_chain_awg_forward iifname "$SERVER_WG_NIC" oifname  "$SERVER_WG_NIC"  ct mark & ${mark_vpn} == ${mark_vpn} ${awg_counter} accept
+add rule $family $std_table_filter $name_chain_awg_forward \
+    iifname "$SERVER_PUB_NIC" \
+    ip daddr . ip protocol . th dport vmap @$name_map_forward_acl \
+    comment "Взять действие из map для DESTадрес.протокол.порт"
+add rule $family $std_table_filter $name_chain_awg_forward \
+    iifname "$SERVER_WG_NIC" \
+    oifname  "$SERVER_PUB_NIC" \
+    ct mark & ${mark_inet} == ${mark_inet} \
+    ${awg_counter} \
+    accept \
+    comment "Разрешить SNAT для пакетов с меткой $mark_inet"
+add rule $family $std_table_filter $name_chain_awg_forward \
+    iifname "$SERVER_WG_NIC" \
+    oifname  "$SERVER_WG_NIC" \
+    ct mark & ${mark_vpn} == ${mark_vpn} \
+    ${awg_counter} \
+    accept \
+    comment "Разрешить обмен между VPN-клиентами с меткой ${mark_vpn}"
+  # ВОЗВРАТ
 add rule $family $std_table_filter $name_chain_awg_forward ${awg_counter} return
 
   # --- сделать вызов $name_chain_awg_input из $std_table_filter.input
