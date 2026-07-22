@@ -198,7 +198,7 @@ ${suffix_arp}add chain arp $awg_table_arp input  { type filter hook input priori
 ${suffix_arp}add chain arp $awg_table_arp output { type filter hook output priority filter - $awg_priority; policy accept; }
 ${suffix_arp}$(if [ -n "$DEFAULT_ROUTE" ] && [ -n "${PROVIDER_GW_MAC}" ]; then \
   echo "# Разрешаем ARP-ответы ТОЛЬКО от легитимного шлюза провайдера"; \
-  echo "add rule arp $awg_table_arp input iifname \"$SERVER_PUB_NIC\" arp saddr ip \"$DEFAULT_ROUTE\" arp saddr ether \"${PROVIDER_GW_MAC}\" accept comment \"Разрешить только от шлюза провайдера\""; \
+  echo "${suffix_arp}add rule arp $awg_table_arp input iifname \"$SERVER_PUB_NIC\" arp saddr ip \"$DEFAULT_ROUTE\" arp saddr ether \"${PROVIDER_GW_MAC}\" accept comment \"Разрешить только от шлюза провайдера\""; \
 fi)
   # Разрешаем ЛЮБЫЕ входящие ARP-запросы к нашему серверу (чтобы другие видели нас)
   # Но ЗАПРЕЩАЕМ входящие ARP-ответы (reply) от кого-либо, кроме шлюза из п.1
