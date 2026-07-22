@@ -1,0 +1,82 @@
+#!/bin/bash
+
+# shellcheck disable=SC2317
+
+dir_temp=.wg-temp
+dir_=cl.vpn.mrovo.ru
+file_cfg="../${dir_temp}/${dir_}/cfg.conf"
+
+_prepare() {
+  force=0
+  if [ ! -f "$file_cfg" ] || [ $force -eq 1 ]; then
+    ../wg-mgr.sh prepare \
+      --debug \
+      --dry-run \
+      --config "${file_cfg}" \
+      --wg-nic wg0 \
+      --ip4 10.16.18.1/24 \
+      --dns '1.1.1.1,1.0.0.1' \
+      --wg-path ../.wg-temp \
+      --allowed_ips '0.0.0.0/0' \
+      --option "SERVER_PUB_NIC=enp3s0" \
+      --option "SERVER_PUB_IP=45.155.204.169" \
+      "$@"
+  fi
+}
+
+_install() {
+  ../wg-mgr.sh install \
+    --debug \
+    --dry-run \
+    --config "${file_cfg}" \
+    --wg-nic wg0 \
+    --ip4 10.16.18.1/24 \
+    --dns 192.168.15.3 \
+    --wg-path "../${dir_temp}/${dir_}" \
+    --rules-iptables ../nftables/nft.rules \
+    --option "WG_NET=10.16.18.0/24" \
+    --option "NFT_COUNTER=counter; NFT_SEARCH_DOMAIN_LOCALNET=\"home.lan klinika.lan\"" \
+    --option "PROVIDER_GW_MAC=" \
+    --option "NFT_NAT_NET=\"192.168.15.0/24, 192.168.16.0/24,192.168.22.0/24, 192.168.25.0/24,192.168.26.0/24\"" \
+    --option "NFT_LIST_TRUST_WAN='vi.vpn.mrovo.ru, cl-ang.vpn.mrovo.ru,v4v.vpn.mrovo.ru,fn.vpn.mrovo.ru'" \
+    --option "NFT_LIST_TRUST_VPN=\"10.16.18.2,10.16.18.3,10.16.18.4,10.16.18.5,10.16.18.6,10.16.18.7,10.16.18.254,192.168.15.0/24,192.168.16.0/24\"" \
+    --option "NFT_LIST_VPN=" \
+    --option "NFT_LIST_VPN_ONLY=" \
+    --option "NFT_LIST_INET_DROP='10.16.18.100'" \
+    --option "NFT_DNS_LOCALNET=192.168.15.3" \
+    --option 'NFT_MAP_FORWARD_ACL="
+        192.168.15.79 . tcp . 80 : accept,
+        192.168.15.79 . tcp . 443 : accept,
+        192.168.16.79 . tcp . 80 : accept,
+        192.168.16.79 . tcp . 443 : accept
+      "' \
+    --option 'NFT_MAP_DNAT="tcp . 443 : 192.168.15.79 . 443, tcp . 80 : 192.168.15.79 . 80, tcp . 8080 : 192.168.16.79 . 80, tcp . 8443 : 192.168.16.79 . 443"' \
+    --option 'NFT_ALLOWED_SERVICES=' \
+    --option 'NFT_ALLOWED_SERVICES_VPN="udp . 161"' \
+    "$@"
+}
+
+is_true=0
+act="$1"
+shift 1
+
+if [[ "$act" =~ p ]]; then
+  echo "prepare"
+  is_true=1
+  _prepare "$@"
+fi
+if [[ "$act" =~ i ]]; then
+  echo "install"
+  is_true=1
+  _install "$@"
+fi
+if [ "$is_true" -eq 1 ]; then
+  echo "Running script"
+  # cat ./hand_params.conf
+else
+  echo "Не указано что делать"
+fi
+
+exit 0
+
+# --option 'NFT_FILENAME_CUSTOM_RULES=custom_rules.sh' \

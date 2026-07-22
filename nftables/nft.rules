@@ -416,18 +416,18 @@ add rule $family $std_table_filter $name_chain_awg_input ${awg_counter} return
 
   # --- FORWARD $name_chain_awg_forward
 add chain $family $std_table_filter $name_chain_awg_forward
-add rule $family $std_table_filter $name_chain_awg_forward \
-    ip saddr @${name_set_awg_portscan} ${awg_counter} reject with icmp port-unreachable \
-    comment "DROPPED set ${name_set_awg_portscan}"
-add rule $family $std_table_filter $name_chain_awg_forward \
-    ip saddr @${name_set_awg_ssh_ban} ${awg_counter} reject with icmp port-unreachable \
-    comment "DROPPED set ${name_set_awg_ssh_ban}"
 add rule $family $std_table_filter $name_chain_awg_forward $predefined_rule_1 \
     comment "Разрешить stateless"
 add rule $family $std_table_filter $name_chain_awg_forward $predefined_rule_2 \
     comment "Запретить invalid"
   # ОТЛАДКА: nft monitoring trace 
 #add rule $family $std_table_filter $name_chain_awg_forward iifname "$SERVER_WG_NIC" oifname  "$SERVER_PUB_NIC" ip saddr { 192.168.15.99, 192.168.15.129,192.168.16.55, 192.168.15.202 } meta nftrace set 1
+add rule $family $std_table_filter $name_chain_awg_forward \
+    ip saddr @${name_set_awg_portscan} ${awg_counter} reject with icmp port-unreachable \
+    comment "DROPPED set ${name_set_awg_portscan}"
+add rule $family $std_table_filter $name_chain_awg_forward \
+    ip saddr @${name_set_awg_ssh_ban} ${awg_counter} reject with icmp port-unreachable \
+    comment "DROPPED set ${name_set_awg_ssh_ban}"
   # ДОВЕРЕННЫЕ адреса
 add rule $family $std_table_filter $name_chain_awg_forward \
     iifname "$SERVER_WG_NIC" \
