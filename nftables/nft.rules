@@ -328,7 +328,7 @@ add rule $family $std_table_filter $name_chain_scan_port tcp flags ! fin,syn,rst
   # которые не используются (например, 1-21, 23-79), его IP улетает в бан на 24 часа.
 add rule $family $std_table_filter $name_chain_scan_port \
     iifname "$SERVER_PUB_NIC" \
-    meta l4proto . th dport != @$name_set_awg_services_ext_not \
+    meta l4proto x. th dport != @$name_set_awg_services_ext_not \
     add @${name_set_awg_portscan} { ip saddr timeout 24h } ${awg_counter} drop \
     comment "ANTI scan ports on ${SERVER_PUB_NIC}"
 add rule $family $std_table_filter $name_chain_scan_port \
@@ -396,11 +396,13 @@ add rule $family $std_table_filter $name_chain_awg_input \
     ${awg_counter} accept \
     comment "Разрешить DNS tcp"
   # Antiscaner ports
-add rule $family $std_table_filter $name_chain_awg_input iifname "$SERVER_PUB_NIC" \
+add rule $family $std_table_filter $name_chain_awg_input \
+    iifname "$SERVER_PUB_NIC" \
     ct mark & ${mark_trust_wan} != ${mark_trust_wan} \
     ${awg_counter} jump scan_port \
     comment "Антисканер портов, брутфорса SSH и т.д."
-add rule $family $std_table_filter $name_chain_awg_input iifname "$SERVER_WG_NIC"  \
+add rule $family $std_table_filter $name_chain_awg_input \
+    iifname "$SERVER_WG_NIC"  \
     ct mark & ${mark_trust_vpn} != ${mark_trust_vpn} \
     ${awg_counter} jump scan_port \
     comment "Антисканер портов, брутфорса SSH и т.д."
@@ -418,6 +420,13 @@ add rule $family $std_table_filter $name_chain_awg_input ${awg_counter} return
 
   # --- FORWARD $name_chain_awg_forward
 add chain $family $std_table_filter $name_chain_awg_forward
+  # жесткий разрыв связи до проверки состояния statefull
+#add rule $family $std_table_filter $name_chain_awg_forward \
+    ip saddr @${name_set_awg_portscan} ${awg_counter} reject with icmp port-unreachable \
+    comment "DROPPED set ${name_set_awg_portscan}"
+#add rule $family $std_table_filter $name_chain_awg_forward \
+    ip saddr @${name_set_awg_ssh_ban} ${awg_counter} reject with icmp port-unreachable \
+    comment "DROPPED set ${name_set_awg_ssh_ban}"
 add rule $family $std_table_filter $name_chain_awg_forward $predefined_rule_1 \
     comment "Разрешить stateless"
 add rule $family $std_table_filter $name_chain_awg_forward $predefined_rule_2 \
