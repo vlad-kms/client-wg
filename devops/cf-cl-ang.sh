@@ -1,17 +1,30 @@
 #!/bin/bash
 
+# shellcheck disable=SC2317
+
+dir_temp=.wg-temp
+file_cfg="../${dir_temp}/conf-cl.conf"
+
 _prepare() {
-  ../wg-mgr.sh prepare -c ./conf-cl-ang.conf -i wg0 --ip4 10.16.19.1/24 --dns '1.1.1.1,1.0.0.1' -w ../.wg-temp \
-    -r ../nftables/nft.rules \
-    --debug --dry-run \
-    -t "WG_PROTO=udp; SSH_PORT=22" \
-    -t "NFT_COUNTER=counter; NFT_SEARCH_DOMAIN_LOCALNET=\"home.lan klinika.lan\";"
-    cat ../.wg-temp/params.conf
+  force=0
+  if [ ! -f "$file_cfg" ] || [ $force -eq 1 ]; then
+    echo "Создаем файл конфигурации для инсталляции ${file_cfg}"
+    ../wg-mgr.sh prepare -c ./conf-cl-ang.conf -i wg0 --ip4 10.16.19.1/24 --dns '1.1.1.1,1.0.0.1' -w "${dir_temp}" \
+      -r "${file_cfg}" \
+      --debug --dry-run \
+      -t "WG_PROTO=udp; SSH_PORT=22" \
+      -t "NFT_COUNTER=counter; NFT_SEARCH_DOMAIN_LOCALNET=\"home.lan klinika.lan\";" \
+      "$@"
+  else
+    echo "Пропускаем создание файла конфигурации для инсталляции ${file_cfg}.
+          Он уже есть и флаг Force не установлен.
+          Либо удалите файл ${file_cfg}, либо замените в скрипте 'force=0' на 'force=1'"
+  fi
 }
 
 _install() {
-  ../wg-mgr.sh install -c ./conf-cl-ang.conf -i wg0 --ip4 10.16.19.1/24 --dns '1.1.1.1,1.0.0.1' -w ../.wg-temp \
-    -r ../nftables/nft.rules \
+  ../wg-mgr.sh install -c ./conf-cl-ang.conf -i wg0 --ip4 10.16.19.1/24 --dns '1.1.1.1,1.0.0.1' -w "${dir_temp}" \
+    -r "${file_cfg}" \
     --debug --dry-run \
     -t "WG_NET=10.16.19.0/24" \
     -t "WG_PROTO=udp; SSH_PORT=22" \
@@ -27,7 +40,7 @@ _install() {
     --option 'NFT_ALLOWED_SERVICES="tcp . 80, tcp . 443, tcp . 5201, udp . 5000, tcp . 10051, tcp . 162"' \
     --option 'NFT_ALLOWED_SERVICES_VPN="tcp . 8080, tcp . 5201, tcp . 10051"' \
     --option 'NFT_FILENAME_CUSTOM_RULES=' \
-    $@
+    "$@"
 }
 
 is_true=0
@@ -49,6 +62,5 @@ if [ "$is_true" -eq 1 ]; then
 else
   echo "Не указано что делать"
 fi
-
 
 exit 0
