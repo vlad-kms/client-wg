@@ -2,19 +2,26 @@
 
 # shellcheck disable=SC2317
 
+dir_root='..'
 dir_temp=.wg-temp
-file_cfg="../${dir_temp}/conf-cl.conf"
+file_cfg="${dir_root}/${dir_temp}/conf.conf"
 
 _prepare() {
   force=0
   if [ ! -f "$file_cfg" ] || [ $force -eq 1 ]; then
     echo "Создаем файл конфигурации для инсталляции ${file_cfg}"
-    ../wg-mgr.sh prepare -c ./conf-cl-ang.conf -i wg0 --ip4 10.16.19.1/24 --dns '1.1.1.1,1.0.0.1' -w "${dir_temp}" \
-      -r "${file_cfg}" \
-      --debug --dry-run \
-      -t "WG_PROTO=udp; SSH_PORT=22" \
-      -t "NFT_COUNTER=counter; NFT_SEARCH_DOMAIN_LOCALNET=\"home.lan klinika.lan\";" \
+    ../wg-mgr.sh prepare \
+      --config "${file_cfg}" \
+      --wg_nic wg0 \
+      --ip4 10.16.19.1/24 \
+      --dns '1.1.1.1,1.0.0.1' \
+      --wg-path "${dir_root}/${dir_temp}" \
+      --debug \
+      --dry-run \
+      --option "WG_PROTO=udp; SSH_PORT=22" \
+      --option "NFT_COUNTER=counter; NFT_SEARCH_DOMAIN_LOCALNET=\"home.lan klinika.lan\";" \
       "$@"
+#      --rules-iptables ../nftables/nft.rules \
   else
     echo "Пропускаем создание файла конфигурации для инсталляции ${file_cfg}.
           Он уже есть и флаг Force не установлен.
@@ -23,12 +30,18 @@ _prepare() {
 }
 
 _install() {
-  ../wg-mgr.sh install -c ./conf-cl-ang.conf -i wg0 --ip4 10.16.19.1/24 --dns '1.1.1.1,1.0.0.1' -w "${dir_temp}" \
-    -r "${file_cfg}" \
-    --debug --dry-run \
-    -t "WG_NET=10.16.19.0/24" \
-    -t "WG_PROTO=udp; SSH_PORT=22" \
-    -t "NFT_COUNTER=counter; NFT_SEARCH_DOMAIN_LOCALNET=\"home.lan klinika.lan\"" \
+  ../wg-mgr.sh install \
+    --debug \
+    --dry-run \
+    --config "${file_cfg}" \
+    --wg_nic wg0 \
+    --ip4 10.16.19.1/24 \
+    --dns '1.1.1.1,1.0.0.1' \
+    --wg-path "${dir_root}/${dir_temp}" \
+    --rules-iptables "${dir_root}/nftables/nft.rules" \
+    --option "WG_NET=10.16.19.0/24" \
+    --option "WG_PROTO=udp; SSH_PORT=22" \
+    --option "NFT_COUNTER=counter; NFT_SEARCH_DOMAIN_LOCALNET=\"home.lan klinika.lan\"" \
     --option "PROVIDER_GW_MAC=" \
     --option "NFT_NAT_NET=\"192.168.15.0/24, 192.168.16.0/24,192.168.22.0/24, 192.168.25.0/24,192.168.26.0/24\"" \
     --option "NFT_LIST_TRUST_WAN='vi.vpn.mrovo.ru, cl.vpn.mrovo.ru,v4v.vpn.mrovo.ru,fn.vpn.mrovo.ru'" \
