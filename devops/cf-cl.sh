@@ -3,12 +3,12 @@
 # shellcheck disable=SC2317
 
 dir_temp=.wg-temp
-dir_=cl.vpn.mrovo.ru
-file_cfg="../${dir_temp}/${dir_}/cfg.conf"
+file_cfg="../${dir_temp}/conf-cl.conf"
 
 _prepare() {
   force=0
   if [ ! -f "$file_cfg" ] || [ $force -eq 1 ]; then
+    echo "Создаем файл конфигурации для инсталляции ${file_cfg}"
     ../wg-mgr.sh prepare \
       --debug \
       --dry-run \
@@ -16,11 +16,15 @@ _prepare() {
       --wg-nic wg0 \
       --ip4 10.16.18.1/24 \
       --dns '1.1.1.1,1.0.0.1' \
-      --wg-path ../.wg-temp \
+      --wg-path ../${dir_temp} \
       --allowed_ips '0.0.0.0/0' \
       --option "SERVER_PUB_NIC=enp3s0" \
       --option "SERVER_PUB_IP=45.155.204.169" \
       "$@"
+  else
+    echo "Пропускаем создание файла конфигурации для инсталляции ${file_cfg}.
+          Он уже есть и флаг Force не установлен.
+          Либо удалите файл ${file_cfg}, либо замените в скрипте 'force=0' на 'force=1'"
   fi
 }
 
@@ -32,7 +36,7 @@ _install() {
     --wg-nic wg0 \
     --ip4 10.16.18.1/24 \
     --dns 192.168.15.3 \
-    --wg-path "../${dir_temp}/${dir_}" \
+    --wg-path "../${dir_temp}" \
     --rules-iptables ../nftables/nft.rules \
     --option "WG_NET=10.16.18.0/24" \
     --option "NFT_COUNTER=counter; NFT_SEARCH_DOMAIN_LOCALNET=\"home.lan klinika.lan\"" \
