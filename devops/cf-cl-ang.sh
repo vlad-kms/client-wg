@@ -12,7 +12,7 @@ _prepare() {
     echo "Создаем файл конфигурации для инсталляции ${file_cfg}"
     ../wg-mgr.sh prepare \
       --config "${file_cfg}" \
-      --wg_nic wg0 \
+      --wg-nic wg0 \
       --ip4 10.16.19.1/24 \
       --dns '1.1.1.1,1.0.0.1' \
       --wg-path "${dir_root}/${dir_temp}" \
@@ -34,7 +34,7 @@ _install() {
     --debug \
     --dry-run \
     --config "${file_cfg}" \
-    --wg_nic wg0 \
+    --wg-nic wg0 \
     --ip4 10.16.19.1/24 \
     --dns '1.1.1.1,1.0.0.1' \
     --wg-path "${dir_root}/${dir_temp}" \
