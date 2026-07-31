@@ -327,10 +327,12 @@ add rule $family $std_table_filter $name_chain_scan_port tcp flags ! fin,syn,rst
   # Блокируем "закрытые" порты, не в списке NFT_ALLOWED_SERVICES. Если атакующий обращается к портам, 
   # которые не используются (например, 1-21, 23-79), его IP улетает в бан на 24 часа.
 add rule $family $std_table_filter $name_chain_scan_port \
+    iifname ${SERVER_PUB_NIC}
     meta l4proto . th dport != @$name_set_awg_services_ext_not \
     add @${name_set_awg_portscan} { ip saddr timeout 24h } ${awg_counter} drop \
     comment "ANTI scan ports on ${SERVER_PUB_NIC}"
 add rule $family $std_table_filter $name_chain_scan_port \
+    iifname ${SERVER_VPN_NIC}
     meta l4proto . th dport != @$name_set_awg_services_vpn_not \
     add @${name_set_awg_portscan} { ip saddr timeout 24h } ${awg_counter} drop \
     comment "ANTI scan ports on ${SERVER_WG_NIC}"
