@@ -31,42 +31,24 @@ _install() {
 }
 
 is_true=0
-if [[ "$1" =~ p ]]; then
+act="$1"
+shift 1
+
+if [[ "$act" =~ p ]]; then
   echo "prepare"
   is_true=1
-  _prepare
+  _prepare "$@"
 fi
-if [[ "$1" =~ i ]]; then
+if [[ "$act" =~ i ]]; then
   echo "install"
   is_true=1
-  _install
+  _install "$@"
 fi
 if [ "$is_true" -eq 1 ]; then
-  cat ./hand_params.conf
+  echo "Выполнено"
 else
   echo "Не указано что делать"
 fi
 
 
-#  --option "WG_NET=10.16.18.0/24" \
 exit 0
-
-
-
-
-NFT_MAP_DNAT=" type inet_proto . inet_service : ipv4_addr . inet_service;
-  elements={
-    tcp . 80   : 192.168.15.79 . 80,
-    tcp . 443  : 192.168.15.79 . 443,
-    tcp . 8080 : 192.168.16.79 . 80,
-    tcp . 8443 : 192.168.16.79 . 443
-  }
-"
-NFT_MAP_FORWARD_ACL=" type ipv4_addr . inet_proto . inet_service : verdict;
-  elements={
-    192.168.15.79 . tcp . 80  : accept,
-    192.168.15.79 . tcp . 443 : accept,
-    192.168.16.79 . tcp . 80  : accept,
-    192.168.16.79 . tcp . 443 : accept
-  }
-"
