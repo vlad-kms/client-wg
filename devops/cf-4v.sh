@@ -43,7 +43,7 @@ _install() {
     --option "PROVIDER_GW_MAC=\"08:05:e2:fa:07:f0\"" \
     --option "NFT_LIST_VPN_ONLY="\
     --option "NFT_LIST_TRUST_VPN=" \
-    --option "NFT_NAT_NET=\"192.168.15.0/24, 192.168.16.0/24,192.168.25.0/24,192.168.26.0/24\"" \
+    --option "NFT_NAT_NET=\"192.168.15.0/24, 192.168.16.0/24,192.168.22.0/24,192.168.25.0/24,192.168.26.0/24\"" \
     --option "NFT_LIST_TRUST_WAN='cl.vpn.mrovo.ru, cl-ang.vpn.mrovo.ru'" \
     --option "NFT_LIST_VPN_ONLY=" \
     --option "NFT_LIST_INET_DROP=" \
