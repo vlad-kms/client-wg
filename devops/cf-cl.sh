@@ -19,6 +19,7 @@ _prepare() {
       --rules-iptables "${dir_root}/nftables/nft.rules" \
       --wg-nic wg0 \
       --ip4 10.16.18.1/24 \
+      --ip6 '' \
       --dns '1.1.1.1,1.0.0.1' \
       --allowed_ips '0.0.0.0/0' \
       "$@"
@@ -36,6 +37,7 @@ _install() {
     --config "${dir_root}/${dir_temp}/${file_cfg}" \
     --wg-nic wg0 \
     --ip4 10.16.18.1/24 \
+    --ip6 '' \
     --dns 192.168.15.3 \
     --wg-path "${dir_root}/${dir_temp}" \
     --rules-iptables "${dir_root}/nftables/nft.rules" \

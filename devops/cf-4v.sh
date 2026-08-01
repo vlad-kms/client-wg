@@ -19,6 +19,7 @@ _prepare() {
       --rules-iptables "${dir_root}/nftables/nft.rules" \
       --wg-nic awg0 \
       --ip4 10.9.8.1/24 \
+      --ip6 '' \
       --dns '1.1.1.1,1.0.0.1' \
       --allowed_ips '0.0.0.0/0' \
       "$@"
@@ -38,6 +39,7 @@ _install() {
     --rules-iptables "${dir_root}/nftables/nft.rules" \
     --wg-nic awg0 \
     --ip4 10.9.8.1/24 \
+    --ip6 '' \
     --dns '192.168.15.3' \
     -t "NFT_COUNTER=counter; NFT_SEARCH_DOMAIN_LOCALNET=\"home.lan klinika.lan\"" \
     --option "PROVIDER_GW_MAC=\"08:05:e2:fa:07:f0\"" \
