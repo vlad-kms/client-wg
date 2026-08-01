@@ -19,6 +19,7 @@ _prepare() {
       --rules-iptables "${dir_root}/nftables/nft.rules" \
       --wg-nic wg0 \
       --ip4 10.16.19.1/24 \
+      --ip6 '' \
       --dns '1.1.1.1,1.0.0.1' \
       --allowed_ips '0.0.0.0/0' \
       "$@"
@@ -38,6 +39,7 @@ _install() {
     --rules-iptables "${dir_root}/nftables/nft.rules" \
     --wg-nic wg0 \
     --ip4 10.16.19.1/24 \
+    --ip6 '' \
     --dns '1.1.1.1,1.0.0.1' \
     --option "WG_NET=10.16.19.0/24" \
     --option "WG_PROTO=udp; SSH_PORT=22" \
