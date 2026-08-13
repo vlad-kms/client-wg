@@ -701,16 +701,16 @@ elif [ "$action" = "add" ]; then
   destroy_awg_table
   if [ -n "${SERVER_WG_NIC}" ] &&  ip l | grep -e ":\s*${SERVER_WG_NIC}:" >/dev/null &&
     command -v resolvectl > /dev/null &&
-    systemctl is-active  systemd_resolved >/dev/null 2>&1 &&
-    systemctl is-enabled systemd_resolved >/dev/null 2>&1
+    systemctl is-active  systemd-resolved >/dev/null 2>&1 &&
+    systemctl is-enabled systemd-resolved >/dev/null 2>&1
   then
-    # echo "SERVER_WG_NIC: ${SERVER_WG_NIC}"
+    echo "Настроим DNS на интерфейсе ${SERVER_WG_NIC}" >&2
     if [ -n "${NFT_DNS_LOCALNET}" ]; then
-      # echo "NFT_DNS_LOCALNET: ${NFT_DNS_LOCALNET}"
+      echo "Установим ip сервера ${NFT_DNS_LOCALNET}"  >&2
       resolvectl dns ${SERVER_WG_NIC} "${NFT_DNS_LOCALNET}"
     fi
     if [ -n "${NFT_SEARCH_DOMAIN_LOCALNET}" ]; then
-      # echo "NFT_SEARCH_DOMAIN_LOCALNET: ${NFT_SEARCH_DOMAIN_LOCALNET}"
+      echo "Установим домены поиска ${NFT_SEARCH_DOMAIN_LOCALNET}" >&2
       resolvectl domain "${SERVER_WG_NIC}" "${NFT_SEARCH_DOMAIN_LOCALNET}"
     fi
   fi
