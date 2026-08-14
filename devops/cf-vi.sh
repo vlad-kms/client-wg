@@ -47,7 +47,7 @@ _install() {
     --option "NFT_COUNTER=counter; NFT_SEARCH_DOMAIN_LOCALNET=\"home.lan klinika.lan\"" \
     --option "PROVIDER_GW_MAC=" \
     --option "NFT_NAT_NET=\"10.16.19.0/24, 192.168.15.0/24, 192.168.16.0/24,192.168.22.0/24, 192.168.25.0/24,192.168.26.0/24\"" \
-    --option "NFT_LIST_TRUST_WAN='cl.vpn.mrovo.ru, cl-ang.vpn.mrovo.ru, 4v.vpn.mrovo.ru,fn.vpn.mrovo.ru'" \
+    --option "NFT_LIST_TRUST_WAN='cl.vpn.mrovo.ru, cl-ang.vpn.mrovo.ru, v4v.vpn.mrovo.ru,fn.vpn.mrovo.ru'" \
     --option "NFT_LIST_VPN=" \
     --option "NFT_LIST_VPN_ONLY=" \
     --option "NFT_LIST_INET_DROP=" \
