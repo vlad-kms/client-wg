@@ -172,7 +172,7 @@ is_version_less_one() {
   if [ $v1 -ge 1 ]; then return 0; else return 1; fi
 }
 
-dnat2acl() {
+dnat2acl_1() {
   local output=$(echo "$1" | \
     awk '
     {
@@ -201,6 +201,21 @@ dnat2acl() {
       }
     }'
   )
+  echo -e "$output"
+}
+
+dnat2acl() {
+  local output=$(echo "$1" | \
+      tr ',' '\n' | \
+      grep -v '^[[:space:]]*$' | \
+      sed -E '
+            s/^[[:space:]]+//;
+            s/[[:space:]]+$//;
+            s/[[:space:]]+//g;
+            s/^([a-z]+)\.([0-9]+):([0-9.]+)\.([0-9]+)$/  \3 . \1 . \4 : accept,/;
+      ' | \
+      sed '$ s/,$//')
+  local output="\n${output}\n"
   echo -e "$output"
 }
 
