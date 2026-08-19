@@ -33,6 +33,7 @@ name_set_ssh_quota=ssh_quota
 name_set_ssh_limit=ssh_limit
 
 name_map_forward_acl=map_forward_acl
+name_map_forward_acl_dnat=map_forward_acl_dnat
 name_map_dnat=map_dnat
 
 family=inet
@@ -84,7 +85,8 @@ print_bin() {
 tmpfile="$(mktemp)"
 
 #!/bin/sh
-_CLEANED_=0
+_CLEANED_=${NFT_CLEANED:-0}
+# _CLEANED_=$((_CLEANED_))                                                                                      
 _cleanup() {
   if [ ${_CLEANED_} -eq 0 ]; then
     _CLEANED_=1
@@ -168,6 +170,38 @@ is_version_less_one() {
   local v=$(nft --version)
   local v1=$(echo $v | sed -En 's/^nft.*\sv([0-9.]*)\s*.*/\1/p' | sed -En 's/([0-9])\..*/\1/p')
   if [ $v1 -ge 1 ]; then return 0; else return 1; fi
+}
+
+dnat2acl() {
+  local output=$(echo "$1" | \
+    awk '
+    {
+      # Разбиваем строку по запятым
+      n = split($0, rules, ",")
+      for (i = 1; i <= n; i++) {
+        rule = rules[i]
+        gsub(/^[ \t]+|[ \t]+$/, "", rule)
+        if (rule == "") continue
+                
+        # Ищем шаблон: proto . extport : intip . intport
+        if (match(rule, /([a-z]+)[ \t]*\.[ \t]*([0-9]+)[ \t]*:[ \t]*([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)[ \t]*\.[ \t]*([0-9]+)/, arr)) {
+          proto = arr[1]
+          ext_port = arr[2]  # не используется
+          int_ip = arr[3]    # внутренний IP
+          int_port = arr[4]  # внутренний порт
+                    
+          result = result "  " int_ip " . " proto " . " int_port " : accept,\n"
+        }
+      }
+    }
+    END {
+      if (result != "") {
+        gsub(/,\n$/, "\n", result)
+        print "\n" result
+      }
+    }'
+  )
+  echo -e "$output"
 }
 
 # ==================================================================================================================================================
@@ -279,7 +313,8 @@ add set $family $std_table_filter $name_set_awg_services_vpn_not { type inet_pro
 add set $family $std_table_filter $name_set_ssh_limit { type ipv4_addr; flags dynamic; }
   # --- MAPS  +++++++++++++++++++
 add map $family $std_table_filter $name_map_forward_acl { type ipv4_addr . inet_proto . inet_service : verdict; flags interval; }
-add map ip $std_table_nat $name_map_dnat { type inet_proto . inet_service : ipv4_addr . inet_service; flags interval; }
+add map $family $std_table_filter $name_map_forward_acl_dnat { type ipv4_addr . inet_proto . inet_service : verdict; flags interval; }
+add map $family_ip $std_table_nat $name_map_dnat { type inet_proto . inet_service : ipv4_addr . inet_service; flags interval; }
 
   # --- установка элементов sets
  # --- $name_set_awg_trust_wan
@@ -301,6 +336,8 @@ $(get_rule_element_set "$family $std_table_filter $name_set_awg_services_vpn_not
 $(get_rule_element_set "$family $std_table_filter $name_set_awg_services_vpn_not" "$service_ssh")
   # --- $name_map_forward_acl
 $(get_rule_element_set "$family $std_table_filter $name_map_forward_acl" "${NFT_MAP_FORWARD_ACL}")
+  # --- $name_map_forward_acl_dnat
+$(get_rule_element_set "$family $std_table_filter $name_map_forward_acl_dnat" "${NFT_MAP_FORWARD_ACL_DNAT}")
   # --- $name_map_dnat
 $(get_rule_element_set "$family_ip $std_table_nat $name_map_dnat" "${NFT_MAP_DNAT}")
 
@@ -446,10 +483,15 @@ add rule $family $std_table_filter $name_chain_awg_forward \
     ${awg_counter} \
     accept \
     comment "Разрешить все с доверенных на $SERVER_WG_NIC (метка ${mark_trust_vpn})"
-  # filter для DNAT $name_map_forward_acl
+  # filter для $name_map_forward_acl
 add rule $family $std_table_filter $name_chain_awg_forward \
     iifname "$SERVER_PUB_NIC" \
     ip daddr . ip protocol . th dport vmap @$name_map_forward_acl \
+    comment "Взять действие из map для DESTадрес.протокол.порт"
+  # filter для DNAT $name_map_forward_acl_dnat
+add rule $family $std_table_filter $name_chain_awg_forward \
+    iifname "$SERVER_PUB_NIC" \
+    ip daddr . ip protocol . th dport vmap @$name_map_forward_acl_dnat \
     comment "Взять действие из map для DESTадрес.протокол.порт"
 add rule $family $std_table_filter $name_chain_awg_forward \
     iifname "$SERVER_WG_NIC" \
@@ -625,9 +667,13 @@ destroy_awg_table() {
     nft delete set $family $std_table_filter $name_set_ssh_limit
   fi
 
-  # map $name_map_forward_acl   =map_forward_acl
+  # map $name_map_forward_acl        =map_forward_acl
   if nft -a list table $family $std_table_filter | grep -e "map.*$name_map_forward_acl" 2>&1 >/dev/null; then
     nft delete map $family $std_table_filter $name_map_forward_acl
+  fi
+  # map $name_map_forward_acl_dnat   =map_forward_acl_dnat
+  if nft -a list table $family $std_table_filter | grep -e "map.*$name_map_forward_acl_dnat" 2>&1 >/dev/null; then
+    nft delete map $family $std_table_filter $name_map_forward_acl_dnat
   fi
   # map $name_map_dnat          =map_dnat
   if nft -a list table ip $std_table_nat | grep -e "map.*$name_map_dnat" 2>&1 >/dev/null; then
@@ -699,6 +745,7 @@ elif [ "$action" = "add" ]; then
   fi
 
   destroy_awg_table
+  NFT_MAP_FORWARD_ACL_DNAT=$(dnat2acl "${NFT_MAP_DNAT}")
   if [ -n "${SERVER_WG_NIC}" ] &&  ip l | grep -e ":\s*${SERVER_WG_NIC}:" >/dev/null &&
     command -v resolvectl > /dev/null &&
     systemctl is-active  systemd-resolved >/dev/null 2>&1 &&
