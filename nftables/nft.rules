@@ -502,11 +502,13 @@ add rule $family $std_table_filter $name_chain_awg_forward \
 add rule $family $std_table_filter $name_chain_awg_forward \
     iifname "$SERVER_PUB_NIC" \
     ip daddr . ip protocol . th dport vmap @$name_map_forward_acl \
+    ${awg_counter} \
     comment "Взять действие из map для DESTадрес.протокол.порт"
   # filter для DNAT $name_map_forward_acl_dnat
 add rule $family $std_table_filter $name_chain_awg_forward \
     iifname "$SERVER_PUB_NIC" \
     ip daddr . ip protocol . th dport vmap @$name_map_forward_acl_dnat \
+    ${awg_counter} \
     comment "Взять действие из map для DESTадрес.протокол.порт"
 add rule $family $std_table_filter $name_chain_awg_forward \
     iifname "$SERVER_WG_NIC" \
