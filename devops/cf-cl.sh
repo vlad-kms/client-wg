@@ -51,12 +51,7 @@ _install() {
     --option "NFT_LIST_VPN_ONLY=" \
     --option "NFT_LIST_INET_DROP='10.16.18.100'" \
     --option "NFT_DNS_LOCALNET=192.168.15.3" \
-    --option 'NFT_MAP_FORWARD_ACL="
-        192.168.15.79 . tcp . 80 : accept,
-        192.168.15.79 . tcp . 443 : accept,
-        192.168.16.79 . tcp . 80 : accept,
-        192.168.16.79 . tcp . 443 : accept
-      "' \
+    --option 'NFT_MAP_FORWARD_ACL=' \
     --option 'NFT_MAP_DNAT="tcp . 443 : 192.168.15.79 . 443, tcp . 80 : 192.168.15.79 . 80, tcp . 8080 : 192.168.16.79 . 80, tcp . 8443 : 192.168.16.79 . 443"' \
     --option 'NFT_ALLOWED_SERVICES=' \
     --option 'NFT_ALLOWED_SERVICES_VPN="udp . 161"' \

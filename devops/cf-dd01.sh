@@ -36,10 +36,7 @@ _install() {
     --option "WG_PROTO=udp; NFT_SEARCH_DOMAIN_LOCALNET=\"dom1.as dom2.as\"; SSH_PORT=22" \
     --option "NFT_LIST_VPN_ONLY=\"192.168.15.55, 192.168.16.55\"" \
     --option "SSH_PROTO=UUU;NFT_LIST_TRUST_WAN='192.168.15.0/24'; NFT_LIST_TRUST_VPN='192.168.16.0/24'" \
-    --option "NFT_MAP_FORWARD_ACL=\"
-        192.168.15.79 . tcp . 80-82: accept,
-        192.168.15.79 . tcp . 443 : accept
-      \"" \
+    --option "NFT_MAP_FORWARD_ACL=" \
     --option "NFT_MAP_DNAT=\"tcp . 80-82   : 192.168.15.79 . 80,
         tcp . 443  : 192.168.15.79 . 443,
       \"" \
