@@ -1564,18 +1564,25 @@ wg_install() {
   #     tcp . 8080 : 192.168.15.80 . 80,
   #     tcp . 8443 : 192.168.15.80 . 443,
   #     udp . 443  : 192.168.15.79 . 5555
-  # \""
+  # \"
+  #  На основе этого создаются два map'а:
+  #  1) table ip nat map map_dnat, служит для написания правил DNAT в цепочке table ip nat chain prerouting
+  #  2) table ip filter map map_forward_acl_dnat, преобразовается и служит для написания правил в цепочке table ip filter awg_forward
+  #"
         printf "%s\n" "$(get_value_hand_param "NFT_MAP_DNAT" "")"
         printf "%s\n" "  ### Список ip . proto . port : action для правила в forward filter"
-        printf "%s\n" \
-  "  # NFT_MAP_FORWARD_ACL=\"
-  #     192.168.15.79 . tcp . 80   : accept,
-  #     192.168.15.79 . tcp . 443  : accept,
-  #     192.168.15.80 . tcp . 8080 : accept,
-  #     192.168.15.80 . tcp . 8443 : accept,
-  #     192.168.15.79 . udp . 443  : accept
-  # \""
-        printf "%s\n" "$(get_value_hand_param "NFT_MAP_FORWARD_ACL" "")"
+        printf "%s\n" "  # NFT_MAP_FORWARD_ACL_BEFORE_DNAT=
+  # формат как в предыдущем параметре.
+  # На основе этого создается map, который служит для написания правил в цепочке table ip filter awg_forward и
+  # имеет приоритет над правилом (вставляется перед правилом) из п.2 параметра NFT_MAP_DNAT
+  #"
+        printf "%s\n" "$(get_value_hand_param "NFT_MAP_FORWARD_ACL_BEFORE_DNAT" "")"
+        printf "%s\n" "  # NFT_MAP_FORWARD_ACL_AFTER_DNAT=
+  # формат как в предыдущем параметре.
+  # На основе этого создается map, который служит для написания правил в цепочке table ip filter awg_forward и
+  # не имеет приоритет над правилом (вставляется после правила) из п.2 параметра NFT_MAP_DNAT
+  #"
+        printf "%s\n" "$(get_value_hand_param "NFT_MAP_FORWARD_ACL_AFTER_DNAT" "")"
         printf "%s\n" "  ### Использовать ARP table или нет"
         printf "%s\n" "  # NFT_USE_ARP_TABLE=(1 OR 0)"
         printf "%s\n" "$(get_value_hand_param "NFT_USE_ARP_TABLE" "0")"
