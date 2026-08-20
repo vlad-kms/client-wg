@@ -789,7 +789,7 @@ elif [ "$action" = "add" ]; then
     fi
     if [ -n "${NFT_SEARCH_DOMAIN_LOCALNET}" ]; then
       echo "Установим домены поиска ${NFT_SEARCH_DOMAIN_LOCALNET}" >&2
-      resolvectl domain "${SERVER_WG_NIC}" "${NFT_SEARCH_DOMAIN_LOCALNET}"
+      resolvectl domain "${SERVER_WG_NIC}" $(echo "$NFT_SEARCH_DOMAIN_LOCALNET")
     fi
   fi
   init_nft
