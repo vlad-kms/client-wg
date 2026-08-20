@@ -1571,14 +1571,14 @@ wg_install() {
   #"
         printf "%s\n" "$(get_value_hand_param "NFT_MAP_DNAT" "")"
         printf "%s\n" "  ### Список ip . proto . port : action для правила в forward filter"
-        printf "%s\n" "  # NFT_MAP_FORWARD_ACL_BEFORE_DNAT=
-  # формат как в предыдущем параметре.
+        printf "%s\n" "  # NFT_MAP_FORWARD_ACL_BEFORE_DNAT=\"192.168.15.79 . tcp . 443 : accept, 192.168.15.79 . tcp . 80 : accept,
+  # 192.168.16.79 . tcp . 443 : drop, 192.168.16.79 . tcp . 80 : drop\"
   # На основе этого создается map, который служит для написания правил в цепочке table ip filter awg_forward и
   # имеет приоритет над правилом (вставляется перед правилом) из п.2 параметра NFT_MAP_DNAT
   #"
         printf "%s\n" "$(get_value_hand_param "NFT_MAP_FORWARD_ACL_BEFORE_DNAT" "")"
         printf "%s\n" "  # NFT_MAP_FORWARD_ACL_AFTER_DNAT=
-  # формат как в предыдущем параметре.
+  # формат как в параметре NFT_MAP_FORWARD_ACL_BEFORE_DNAT.
   # На основе этого создается map, который служит для написания правил в цепочке table ip filter awg_forward и
   # не имеет приоритет над правилом (вставляется после правила) из п.2 параметра NFT_MAP_DNAT
   #"
