@@ -1600,7 +1600,8 @@ wg_install() {
         printf "%s\n" '  ### nft insert rule $family $std_table_filter $name_chain_awg_input index 3 iifname "$SERVER_PUB_NIC" ip saddr 0.0.0.0 udp sport 68 ct state new $awg_counter drop comment "Drop DHCP"'
         printf "%s\n" "  # NFT_FILENAME_CUSTOM_RULES=custom_rules.sh"
         printf "%s\n" "$(get_value_hand_param "NFT_FILENAME_CUSTOM_RULES" "custom_rules.sh")"
-
+        printf "%s\n" "  # NFT_MAP_ALLOWED_SERVICE_SRC=\"192.168.15.79 . tcp . 443 : accept, 192.168.15.79 . tcp . 80 : accept\""
+        printf "%s\n" "$(get_value_hand_param "NFT_MAP_ALLOWED_SERVICE_SRC" "")"
     } >> "${file_hand_params}"
     # работа с настройками для iptables
     if which iptables > /dev/null 2>&1; then
