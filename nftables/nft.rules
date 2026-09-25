@@ -36,6 +36,7 @@ name_map_forward_acl_before_dnat=map_forward_acl_before_dnat
 name_map_forward_acl_dnat=map_forward_acl_dnat
 name_map_forward_acl_after_dnat=map_forward_acl_after_dnat
 name_map_dnat=map_dnat
+name_map_allowed_service_src=map_allowed_service_src
 
 family=inet
 family_ip=ip
@@ -332,6 +333,7 @@ add map $family $std_table_filter $name_map_forward_acl_before_dnat { type ipv4_
 add map $family $std_table_filter $name_map_forward_acl_dnat { type ipv4_addr . inet_proto . inet_service : verdict; flags interval; }
 add map $family $std_table_filter $name_map_forward_acl_after_dnat { type ipv4_addr . inet_proto . inet_service : verdict; flags interval; }
 add map $family_ip $std_table_nat $name_map_dnat { type inet_proto . inet_service : ipv4_addr . inet_service; flags interval; }
+add map $family $std_table_filter $name_map_allowed_service_src { type ipv4_addr . inet_proto . inet_service : verdict; flags interval; }
 
   # --- установка элементов sets
  # --- $name_set_awg_trust_wan
@@ -359,7 +361,8 @@ $(get_rule_element_set "$family $std_table_filter $name_map_forward_acl_dnat" "$
 $(get_rule_element_set "$family $std_table_filter $name_map_forward_acl_after_dnat" "${NFT_MAP_FORWARD_ACL_AFTER_DNAT}")
   # --- $name_map_dnat
 $(get_rule_element_set "$family_ip $std_table_nat $name_map_dnat" "${NFT_MAP_DNAT}")
-
+  # --- $name_map_allowed_service_src
+$(get_rule_element_set "$family $std_table_filter $name_map_allowed_service_src" "${NFT_MAP_ALLOWED_SERVICE_SRC}")
 
   # CHAINS  +++++++++++++++++++
   # --- create chain $name_chain_logdrop
@@ -379,6 +382,12 @@ add chain $family $std_table_filter $name_chain_scan_port
 add rule $family $std_table_filter $name_chain_scan_port tcp flags fin / fin,ack ${awg_counter} add @${name_set_awg_portscan} { ip saddr timeout 24h } ${awg_counter} jump logdrop
 add rule $family $std_table_filter $name_chain_scan_port tcp flags fin,syn,rst,psh,ack,urg / fin,syn,rst,psh,ack,urg add @${name_set_awg_portscan} { ip saddr timeout 24h } ${awg_counter} jump logdrop
 add rule $family $std_table_filter $name_chain_scan_port tcp flags ! fin,syn,rst,psh,ack,urg add @${name_set_awg_portscan} { ip saddr timeout 24h } ${awg_counter} jump logdrop
+  # Пропуск ( или другие действия) для определенных протоколов, srs address'ов и src port'ов сканера портов
+add rule $family $std_table_filter $name_chain_scan_port \
+    iifname "$SERVER_PUB_NIC" \
+    ip saddr . ip protocol . th sport vmap @$name_map_allowed_service_src \
+    ${awg_counter} \
+    comment "Взять действие из map для SRC адрес.протокол.порт"
   # ЗАЩИТА ОТ СКАНЕРОВ ПОРТОВ (Port Scan Protection)
   # Блокируем "закрытые" порты, не в списке NFT_ALLOWED_SERVICES. Если атакующий обращается к портам, 
   # которые не используются (например, 1-21, 23-79), его IP улетает в бан на 24 часа.
@@ -415,9 +424,10 @@ add chain $family $std_table_filter $name_chain_awg_input
   # ОТЛАДКА: nft monitoring trace 
 #add rule  $family $std_table_filter $name_chain_awg_input tcp dport 22 meta nftrace set 1
 add rule $family $std_table_filter $name_chain_awg_input $predefined_rule_0 comment "Разрешить все на интерфейсе lo"
+add rule $family $std_table_filter $name_chain_awg_input $predefined_rule_1 comment "Разрешить stateless"
 add rule $family $std_table_filter $name_chain_awg_input ip saddr @${name_set_awg_portscan} ${awg_counter} reject with icmp port-unreachable
 add rule $family $std_table_filter $name_chain_awg_input ip saddr @${name_set_awg_ssh_ban} ${awg_counter} reject with icmp port-unreachable
-add rule $family $std_table_filter $name_chain_awg_input $predefined_rule_1 comment "Разрешить stateless"
+ #add rule $family $std_table_filter $name_chain_awg_input $predefined_rule_1 comment "Разрешить stateless"
   # Разрешаем основные типы ICMP для IPv4
 add rule $family $std_table_filter $name_chain_awg_input ip protocol icmp \
     icmp type { destination-unreachable, time-exceeded, parameter-problem, echo-request, echo-reply } limit rate 5/second accept
@@ -710,6 +720,11 @@ destroy_awg_table() {
   if nft -a list table ip $std_table_nat | grep -e "map.*$name_map_dnat" 2>&1 >/dev/null; then
     nft delete map ip $std_table_nat $name_map_dnat
   fi
+  # map $name_map_allowed_service_src =name_map_allowed_service_src
+  if nft -a list table $family $std_table_filter | grep -e "map.*$name_map_allowed_service_src" 2>&1 >/dev/null; then
+    nft delete map $family $std_table_filter $name_map_allowed_service_src
+  fi
+
   # установить для цепочек filter.input, filter.output, filter.forward policy accept
   nft chain $family $std_table_filter input   { policy accept\; }
   nft chain $family $std_table_filter output  { policy accept\; }
