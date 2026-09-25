@@ -32,3 +32,5 @@ nftables
 iptables
 !iptables/*.rules
 !iftables/*.templates
+
+devops
