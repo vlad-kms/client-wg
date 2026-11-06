@@ -563,7 +563,7 @@ else
   echo "# add rule ip $std_table_nat postrouting oifname \"$SERVER_PUB_NIC\" ${awg_counter} masquerade";
 fi)
   # prerouting: правило DNAT
-add rule ip $std_table_nat prerouting iifname "$SERVER_PUB_NIC" dnat to ip protocol . th dport map @$name_map_dnat
+add rule ip $std_table_nat prerouting iifname "$SERVER_PUB_NIC" ${awg_counter} dnat to ip protocol . th dport map @$name_map_dnat
 
 # ==================================================================================================================================================================
 EOF
